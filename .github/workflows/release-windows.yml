@@ -37,24 +37,28 @@ jobs:
         with:
           node-version: '20'
 
-      # Wails 官方维护的构建 action，负责 CGO 所需的本机工具链。这类依赖自己装
-      # 容易踩坑且难排查，用官方版本。
+      # 不用第三方构建 action：`dAppServer/wails-build-action` 仓库虽然存在，
+      # 但没有任何 release（@v2.2.0 这个 tag 根本不存在，2026-10-01 实测在此报
+      # "Unable to resolve action"）。自己装 Wails CLI 更可控，也顺带绕开它的
+      # `package` 默认 true —— 那个开关会让它自己上传 `*/bin/*`，即 build/bin 整个
+      # 目录；便携模式的 data/（面板配置 + 登录会话）一旦落在那儿就会随 Release 公开。
+      # 本工作流改为自己挑文件打包（只发 exe + LICENSE + 两份 README）。
       #
-      # ⚠️ `package: false` 不能改成默认的 true。该 action 在 package=true 时会自己
-      # 跑 release，上传 `*/bin/*` —— 那是 build/bin 下的**整个目录**。便携模式的
-      # data/（面板配置 + 登录会话）一旦落在那儿就会被一并发到公开 Release 上。
-      # 本工作流改为自己挑文件打包（只发 exe + LICENSE + README），与其重复也不安全。
-      #
-      # `build-platform` 默认是 darwin/universal，必须显式指定 windows/amd64。
-      # 产物固定为 build/bin/PanelDock.exe。
+      # CLI 版本与 go.mod 里的 wailsapp/wails 保持一致，避免两边行为不一致。
+      # 新版 Wails 用纯 Go 的 WebView2Loader，不需要 CGO 工具链（本地已验证）。
+      - name: 安装 Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+          $bin = Join-Path (go env GOPATH) 'bin'
+          & (Join-Path $bin 'wails.exe') version
+
       - name: 构建 Windows x64 发行版
-        uses: dAppServer/wails-build-action@v2.2.0
-        with:
-          build-name: PanelDock.exe
-          build-platform: windows/amd64
-          package: false
-          nsis: false         # 阶段 6：先发 ZIP 绿色版，安装包后置
-          go-version: '1.25'
+        shell: pwsh
+        run: |
+          $wails = Join-Path (go env GOPATH) 'bin\wails.exe'
+          & $wails build -platform windows/amd64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # ── 代码签名（占位，申请通过后启用）──────────────────────────────
       # 未签名的 exe 会被 Windows SmartScreen 拦一次。已申请 SignPath Foundation
