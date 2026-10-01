@@ -7,7 +7,14 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "",
+    "name": "PanelDock Contributors",
     "email": ""
+  },
+  "info": {
+    "companyName": "PanelDock Contributors",
+    "productName": "PanelDock",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright (c) 2026 PanelDock Contributors",
+    "comments": "Lightweight isolated WebView2 sessions for LAN admin pages."
   }
 }

@@ -12,7 +12,7 @@ A browser is a machine that can do anything. The catch: **you want one feature, 
 - **It saves CPU, because nothing runs in the background.** No extension can wake itself up, no sync is polling, no update checker, no telemetry. Close a panel window and it stops consuming anything at all.
 - **It's faster.** Double-click a desktop shortcut and you land directly on the target page — no browser shell cold-start in between.
 - **It's safer.** Panel windows **inject no script and expose no bridge**, so a page gets zero local capability. No add-on can insert itself into your session. No browser background process keeps running after you thought you closed everything.
-- **It's portable.** A portable build: unzip and run, nothing written to the registry. Configuration exports and imports in one click, so moving to another machine or carrying it on a USB stick just works.
+- **It's genuinely portable, and it's one folder away.** A portable build: unzip and run, nothing written to the registry. **Create an empty `data` folder next to the exe** and the next launch switches to portable mode: configuration and every login session go into it, and you copy that one folder to a USB stick or another machine and carry straight on (see "Data locations"). No `data` folder and it uses the system directories — the two are independent and never interfere with each other.
 
 ## Features
 
@@ -83,6 +83,21 @@ Regression baseline: `go vet ./...` and `go test ./...` must both pass.
 |---|---|
 | Configuration | `%APPDATA%\PanelDock\config.json` |
 | Per-tab login sessions | `%LOCALAPPDATA%\PanelDock\WebViewProfiles\<tabID>` |
+
+The table above is the **default** (non-portable) location.
+
+### Portable mode: put a `data` folder next to the exe
+
+If a `data` folder exists in the exe's own directory at startup (**an empty one is enough** — the same convention as VSCode's `data` directory), the two paths above move to:
+
+| What | Path |
+|---|---|
+| Configuration | `<exe directory>\data\config.json` |
+| Per-tab login sessions | `<exe directory>\data\WebViewProfiles\<tabID>` |
+
+So copying the whole "exe + data" folder completes a migration — USB stick, another machine, login sessions included. Without that `data` folder, it falls back to the system directories in the table above.
+
+The two locations are independent and never interfere: deleting `data` leaves the system-directory configuration alone, and vice versa. **Note:** a green build extracted from the ZIP has **no** `data` folder by default, so running it as-is uses the system directories — create the folder yourself if you want to carry it around.
 
 To wipe one group's login data right now, use "Reset data" on its card (see below) — it keeps the panel and clears only the data.
 

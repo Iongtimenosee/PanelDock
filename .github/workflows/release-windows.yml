@@ -2,6 +2,9 @@ name: Windows Release
 
 # 阶段 6 计划：先发 ZIP 绿色版，NSIS 安装包后置。
 # 两种触发方式：打 tag（v1.0.0 这样），或在 Actions 页面手动点（填版本号）。
+#
+# 版本号的唯一来源是 wails.json 的 info.productVersion（build/windows/info.json 只是它的模板，
+# 别在那里写死）。发版两步走：先改 wails.json 里的版本号并提交，再打同名 tag。
 on:
   push:
     tags: ["v*"]
