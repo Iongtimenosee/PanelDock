@@ -36,25 +36,39 @@ A browser is a machine that can do anything. The catch: **you want one feature, 
 
 ## Installation
 
-1. Download `PanelDock-windows-amd64.zip` and unzip it anywhere (for example `D:\Tools\PanelDock\`). **Portable — no installer**, nothing written to the registry; delete the folder to uninstall.
+Both packages contain exactly the same thing — pick either.
+
+**Option A: installer (recommended for most people)**
+
+1. Download `PanelDock-windows-x64-setup.exe` and double-click it.
+2. It installs to `%LOCALAPPDATA%\Programs\PanelDock` — **no administrator rights and no UAC prompt**.
+3. You get a Start Menu shortcut and a normal uninstall entry in Windows' installed-apps list.
+
+**Option B: portable**
+
+1. Download `PanelDock-windows-amd64.zip` and unzip it anywhere (for example `D:\Tools\PanelDock\`). **No installer**, nothing written to the registry; delete the folder to uninstall.
 2. Double-click `PanelDock.exe`.
-3. Requires the **WebView2 Runtime**. Windows 10 / 11 usually ship with it already; if startup reports WebView2 missing, install Microsoft's Evergreen Runtime once and every WebView2 app shares it.
+
+Either way it requires the **WebView2 Runtime**. Windows 10 / 11 usually ship with it already; if startup reports WebView2 missing, install Microsoft's Evergreen Runtime once and every WebView2 app shares it.
+
+> **Heads up on uninstalling**: the installer also removes `%APPDATA%\PanelDock` (config) and `%LOCALAPPDATA%\PanelDock` (per-tab login sessions), so router credentials don't linger on disk. To keep your panel list, use "Export config" in the app before uninstalling.
 
 Every release ships a `SHA256SUMS.txt`; verify after download:
 
 ```powershell
-Get-FileHash .\PanelDock-windows-amd64.zip -Algorithm SHA256
+Get-FileHash .\PanelDock-windows-x64-setup.exe -Algorithm SHA256
 ```
 
 ### First run: Windows SmartScreen will block once
 
-The binary has **no code-signing certificate** (several hundred dollars a year is not worth it for a free open-source tool), so Windows shows a one-time "unrecognized app" block. This is not a malware warning — it is Microsoft's blanket prompt for every unsigned new program, and **unblocking the ZIP before extracting avoids it entirely**:
+The binary has **no code-signing certificate** (several hundred dollars a year is not worth it for a free open-source tool), so Windows shows a one-time "unrecognized app" block. This is not a malware warning — it is Microsoft's blanket prompt for every unsigned new program, and **unblocking the download before opening it avoids it entirely**:
 
 ```powershell
+Unblock-File -Path .\PanelDock-windows-x64-setup.exe
 Unblock-File -Path .\PanelDock-windows-amd64.zip
 ```
 
-Then extract as usual. An already-extracted exe can be unblocked on its own too:
+An already-extracted exe can be unblocked on its own too:
 
 ```powershell
 Unblock-File -Path .\PanelDock.exe

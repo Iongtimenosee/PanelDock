@@ -1,4 +1,4 @@
-Unicode true
+﻿Unicode true
 
 ####
 ## Please note: Template replacements don't work in this file. They are provided with default defines like
@@ -30,6 +30,20 @@ Unicode true
 ####
 ## !define REQUEST_EXECUTION_LEVEL "admin"            # Default "admin"  see also https://nsis.sourceforge.io/Docs/Chapter4.html
 ####
+## 本项目对默认模板的定制（其余部分保持 Wails 原样，便于日后升级时对照）：
+##
+## 1. 卸载时清理真实的用户数据目录（见文件末尾 uninstall 段）。
+## 2. 安装界面改成中文优先 + 附带 MIT 许可证页 + 装完可直接启动。
+####
+## 注意：安装范围（每用户 / 全机）**不要**在这里 !define。
+## WAILS_INSTALL_SCOPE 与 REQUEST_EXECUTION_LEVEL 由 wails CLI 决定：
+##   wails build -nsis -installscope user
+## 会自己往 makensis 传 -DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user
+## （见 nsis_installer.go:104）。在这里再 !define 一次会报重复定义。
+## 我们要的是 user：装到 %LOCALAPPDATA%\Programs\PanelDock，不弹 UAC、免管理员权限，
+## 卸载同样免提权 —— 为一个 12MB 的轻量工具索要管理员权限不划算。
+
+####
 ## Include the wails tools
 ####
 !include "wails_tools.nsh"
@@ -57,14 +71,20 @@ ManifestDPIAware true
 !define MUI_ABORTWARNING # This will warn the user if they exit from the installer.
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
-# !insertmacro MUI_PAGE_LICENSE "resources\eula.txt" # Adds a EULA page to the installer
+# MIT 许可证页面。路径以本 .nsi 所在目录为基准：installer → windows → build → 仓库根。
+!insertmacro MUI_PAGE_LICENSE "..\..\..\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY # In which folder install page.
 !insertmacro MUI_PAGE_INSTFILES # Installing page.
+# 装完直接能启动，省一步去开始菜单找
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
 !insertmacro MUI_PAGE_FINISH # Finished installation page.
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
-!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
+# 界面语言：简体中文写在前面即作为默认显示语言，英文可切。
+# 只写 English 的话，中文用户看到的是英文安装向导。
+!insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "English"
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
@@ -96,8 +116,9 @@ Section
 
     !insertmacro wails.files
 
+    # 只建开始菜单快捷方式，不在桌面放图标 —— 常驻托盘的工具不需要占桌面，
+    # 想放的用户自己拖一个过去即可。
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
-    CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     !insertmacro wails.associateFiles
     !insertmacro wails.associateCustomProtocols
@@ -108,7 +129,15 @@ SectionEnd
 Section "uninstall"
     !insertmacro wails.setShellContext
 
-    RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
+    # 清理用户数据。Wails 默认模板这一行是 RMDir /r "$AppData\${PRODUCT_EXECUTABLE}"，
+    # 即 %APPDATA%\PanelDock.exe —— 一个并不存在的目录，等于什么都没删。
+    # PanelDock 的真实数据在这两处：
+    #   %APPDATA%\PanelDock\config.json            —— 面板配置（含你填的面板地址）
+    #   %LOCALAPPDATA%\PanelDock\WebViewProfiles   —— 各标签登录会话（内含 WebView2 保存的密码）
+    # 卸载后不该在磁盘上留着路由器后台的登录态，所以一并删掉。
+    # 想保留配置的，卸载前用程序里的「导出配置」。
+    RMDir /r "$APPDATA\PanelDock"
+    RMDir /r "$LOCALAPPDATA\PanelDock"
 
     RMDir /r $INSTDIR
 

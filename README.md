@@ -36,25 +36,39 @@ Windows 桌面轻量工具：给那些**你总想立刻打开瞄一眼**的后�
 
 ## 安装
 
-1. 下载 `PanelDock-windows-amd64.zip`，解压到任意目录（例如 `D:\Tools\PanelDock\`）。**绿色版，无需安装**，不写注册表，删目录即卸载。
+两个包内容完全相同，挑一个下载。
+
+**方式一：安装包（推荐给大多数用户）**
+
+1. 下载 `PanelDock-windows-x64-setup.exe`，双击运行。
+2. 装到 `%LOCALAPPDATA%\Programs\PanelDock`，**不需要管理员权限**，也不弹 UAC。
+3. 开始菜单会生成快捷方式；控制面板 / 设置的「已安装的应用」里有正常卸载入口。
+
+**方式二：绿色版**
+
+1. 下载 `PanelDock-windows-amd64.zip`，解压到任意目录（例如 `D:\Tools\PanelDock\`）。**无需安装**，不写注册表，删目录即卸载。
 2. 双击 `PanelDock.exe` 运行。
-3. 依赖 **WebView2 Runtime**。Windows 10 / 11 通常已自带；若启动时报缺少 WebView2，装一次微软的 Evergreen Runtime 即可，之后所有 WebView2 应用共用。
+
+两种方式的共同点：依赖 **WebView2 Runtime**，Windows 10 / 11 通常已自带；若启动时报缺少 WebView2，装一次微软的 Evergreen Runtime 即可，之后所有 WebView2 应用共用。
+
+> **卸载注意**：安装包卸载时会一并删除 `%APPDATA%\PanelDock`（配置）和 `%LOCALAPPDATA%\PanelDock`（各标签登录会话），避免路由器后台的登录态残留在磁盘上。想保留面板列表，卸载前用程序里的「导出配置」。
 
 每个版本都附带 `SHA256SUMS.txt`，下载后可校验：
 
 ```powershell
-Get-FileHash .\PanelDock-windows-amd64.zip -Algorithm SHA256
+Get-FileHash .\PanelDock-windows-x64-setup.exe -Algorithm SHA256
 ```
 
 ### 首次运行：Windows SmartScreen 会拦一次
 
-程序**没有代码签名证书**（一年几百美元，对一个免费开源工具不值当），所以 Windows 会给「来源不明的应用」弹一次拦截。这不是病毒告警，是微软对所有未签名新程序的统一提示，**在 ZIP 上先解除锁定再解压就不会出现**：
+程序**没有代码签名证书**（一年几百美元，对一个免费开源工具不值当），所以 Windows 会给「来源不明的应用」弹一次拦截。这不是病毒告警，是微软对所有未签名新程序的统一提示，**下载后先解除锁定就不会出现**：
 
 ```powershell
+Unblock-File -Path .\PanelDock-windows-x64-setup.exe
 Unblock-File -Path .\PanelDock-windows-amd64.zip
 ```
 
-然后正常解压。已经解压出来的 exe 也可以单独解除：
+已经解压出来的 exe 也可以单独解除：
 
 ```powershell
 Unblock-File -Path .\PanelDock.exe

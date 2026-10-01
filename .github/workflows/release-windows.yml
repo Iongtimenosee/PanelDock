@@ -1,7 +1,10 @@
 name: Windows Release
 
-# 阶段 6 计划：先发 ZIP 绿色版，NSIS 安装包后置。
 # 两种触发方式：打 tag（v1.0.0 这样），或在 Actions 页面手动点（填版本号）。
+#
+# 每次发布两个产物，覆盖两类用户：
+#   · ZIP 绿色版  —— 解压即用，可便携（exe 旁建个 data 目录即转便携模式）
+#   · NSIS 安装包 —— 有开始菜单快捷方式与卸载入口，装完可直接启动
 #
 # 版本号的唯一来源是 wails.json 的 info.productVersion（build/windows/info.json 只是它的模板，
 # 别在那里写死）。发版两步走：先改 wails.json 里的版本号并提交，再打同名 tag。
@@ -53,11 +56,30 @@ jobs:
           $bin = Join-Path (go env GOPATH) 'bin'
           & (Join-Path $bin 'wails.exe') version
 
-      - name: 构建 Windows x64 发行版
+      # makensis 是 NSIS 编译器，Wails 的 -nsis 只是调它，不会自己带。
+      # windows-latest 镜像是否预装随版本变化，所以先探测、没有再用 choco 装。
+      - name: 准备 NSIS
+        shell: pwsh
+        run: |
+          $exe = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (-not $exe) {
+            Write-Host 'runner 未自带 NSIS，用 choco 安装'
+            choco install nsis -y --no-progress
+            $exe = 'C:\Program Files (x86)\NSIS\makensis.exe'
+            if (-not (Test-Path $exe)) { throw 'NSIS 装完仍找不到 makensis' }
+            # 写进 GITHUB_PATH，下一步的 wails 才能直接调用 makensis
+            Add-Content -Path $env:GITHUB_PATH -Value 'C:\Program Files (x86)\NSIS'
+          }
+          & $exe /VERSION
+
+      # -nsis 一步产出 exe + 安装包；-installscope user 表示每用户安装
+      # （装到 %LOCALAPPDATA%\Programs，不弹 UAC、免管理员权限，卸载同样免提权）。
+      # 产物：build/bin/PanelDock.exe 与 build/bin/PanelDock-amd64-installer.exe
+      - name: 构建 Windows x64 发行版（exe + 安装包）
         shell: pwsh
         run: |
           $wails = Join-Path (go env GOPATH) 'bin\wails.exe'
-          & $wails build -platform windows/amd64
+          & $wails build -platform windows/amd64 -nsis -installscope user
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # ── 代码签名（占位，申请通过后启用）──────────────────────────────
@@ -98,8 +120,17 @@ jobs:
             Write-Error "build\bin\data 存在，可能夹带本机面板配置与登录会话，中止打包"
             exit 1
           }
+          # NSIS 产物的名字由 build/windows/installer/project.nsi 的 OutFile 决定：
+          # ..\..\bin\<项目名>-<arch>-installer.exe，amd64 单架构即 PanelDock-amd64-installer.exe
+          $setup = Join-Path $pwd 'build\bin\PanelDock-amd64-installer.exe'
+          if (-not (Test-Path $setup)) {
+            Write-Error "没找到安装包：$setup"
+            exit 1
+          }
           Write-Output "exe=$exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Output ("体积 {0:N1} MB" -f ((Get-Item $exe).Length / 1MB))
+          Write-Output "setup=$setup" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output ("exe   {0:N1} MB" -f ((Get-Item $exe).Length / 1MB))
+          Write-Output ("setup {0:N1} MB" -f ((Get-Item $setup).Length / 1MB))
 
       - name: 解析版本号
         id: ver
@@ -124,14 +155,27 @@ jobs:
           Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $out
           Write-Output ("已打包 {0}（{1:N1} MB）" -f $out, ((Get-Item $out).Length / 1MB))
 
+      # 安装包在 build/bin 下叫 PanelDock-amd64-installer.exe，对外发布用统一命名
+      - name: 整理安装包文件名
+        shell: pwsh
+        run: |
+          $setup = "PanelDock-${{ steps.ver.outputs.version }}-windows-x64-setup.exe"
+          Copy-Item 'build\bin\PanelDock-amd64-installer.exe' -Destination $setup
+          Write-Output ("安装包 {0}（{1:N1} MB）" -f $setup, ((Get-Item $setup).Length / 1MB))
+
       - name: 计算 SHA-256
         id: sha
         shell: pwsh
         run: |
-          $asset = "PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip"
-          $hash = (Get-FileHash -Path $asset -Algorithm SHA256).Hash.ToLower()
-          Write-Output "hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Set-Content -Path 'SHA256SUMS.txt' -Value "$hash  $asset" -Encoding ASCII
+          $zip   = "PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip"
+          $setup = "PanelDock-${{ steps.ver.outputs.version }}-windows-x64-setup.exe"
+          $lines = foreach ($f in @($zip, $setup)) {
+            $h = (Get-FileHash -Path $f -Algorithm SHA256).Hash.ToLower()
+            "$h  $f"
+          }
+          Set-Content -Path 'SHA256SUMS.txt' -Value $lines -Encoding ASCII
+          Write-Output "zip_hash=$((Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower())" |
+            Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Get-Content 'SHA256SUMS.txt'
 
       - name: 发布 Release
@@ -141,23 +185,31 @@ jobs:
           name: PanelDock ${{ steps.ver.outputs.version }}
           # 未做代码签名，必须明说：用户会看到 SmartScreen 提示。
           body: |
-            绿色版，解压即用（无需安装）。Windows 10 / 11 x64，需已安装 WebView2 Runtime
-            （Windows 11 与更新的 Windows 10 通常自带）。
+            Windows 10 / 11 x64，需已安装 WebView2 Runtime（Windows 11 与更新的
+            Windows 10 通常自带）。**两个包内容相同，挑一个下**：
 
-            **校验**：SHA-256 见下方 `SHA256SUMS.txt`。
+            - **`PanelDock-${{ steps.ver.outputs.version }}-windows-x64-setup.exe` —— 安装包**：
+              双击即可，有开始菜单快捷方式与卸载入口，装完可直接启动。不需要管理员权限。
+            - **`PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip` —— 绿色版**：
+              解压即用，不写注册表。在 exe 旁边建一个 `data` 文件夹即转为便携模式，
+              整个目录拷走就能换机器。
+
+            **校验**：两个文件的 SHA-256 都在下方 `SHA256SUMS.txt` 里。
 
             **未做代码签名**，Windows 首次运行会弹 SmartScreen。这不是病毒告警，
-            是微软对所有未签名新程序的统一提示。**在 ZIP 上先解除锁定再解压就不会出现**：
+            是微软对所有未签名新程序的统一提示。**下载后先解除锁定就不会出现**：
 
             ```
+            Unblock-File -Path .\\PanelDock-${{ steps.ver.outputs.version }}-windows-x64-setup.exe
             Unblock-File -Path .\\PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip
             ```
 
-            已经解压的话：`Unblock-File -Path .\\PanelDock.exe`，或右键 exe → 属性 →
+            已经解压的话：`Unblock-File -Path .\PanelDock.exe`，或右键 exe → 属性 →
             勾选「解除锁定」。签名需要代码签名证书，已申请开源免费签名（SignPath Foundation），
             通过后不再有此提示。
 
-            完整说明见包内 README。
+            完整说明见仓库 README（ZIP 内也有一份）。
           files: |
+            PanelDock-${{ steps.ver.outputs.version }}-windows-x64-setup.exe
             PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip
             SHA256SUMS.txt
