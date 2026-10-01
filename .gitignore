@@ -17,3 +17,6 @@ PanelDock.exe~
 .design-work/
 icon-candidates/
 PanelDock图标候选_assets/
+
+# wails build -nsis 会在构建时下载 WebView2 引导程序到这里，属构建产物
+build/windows/installer/tmp/
