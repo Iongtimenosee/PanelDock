@@ -53,6 +53,27 @@ jobs:
           nsis: false         # 阶段 6：先发 ZIP 绿色版，安装包后置
           go-version: '1.25'
 
+      # ── 代码签名（占位，申请通过后启用）──────────────────────────────
+      # 未签名的 exe 会被 Windows SmartScreen 拦一次。已申请 SignPath Foundation
+      # 的开源免费签名（MIT + 公开仓库 + 有 Release 即符合条件），批准后：
+      #   1. 在仓库 Secrets 里放 SIGNPATH_TOKEN、SIGNPATH_ORG_ID、SIGNPATH_PROJECT_SLUG、
+      #      SIGNPATH_SIGNING_POLICY_SLUG
+      #   2. 去掉下面这些步骤的注释
+      # 注意：签名后 publisher 显示 "SignPath Foundation"（不是个人名），这是该计划的既定语义。
+      # 别去买 EV 证书 —— 微软 2024 年起取消了 EV 对 SmartScreen 的即时豁免，花了钱也仍旧要
+      # 累积下载声誉才会消弹窗。
+      #
+      # - name: 提交签名请求（SignPath）
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_TOKEN }}
+      #     organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+      #     project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+      #     signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+      #     github-artifact-id: ${{ steps.build.outputs.artifact-id }}
+      #     wait-for-completion: true
+      #     output-artifact-directory: signed
+
       - name: 定位构建产物
         id: locate
         shell: pwsh
@@ -88,10 +109,11 @@ jobs:
           $out = "PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip"
           $staging = Join-Path $env:RUNNER_TEMP 'PanelDock-pkg'
           New-Item -ItemType Directory -Path $staging -Force | Out-Null
-          # 绿色版三件套：exe + 许可证 + 说明（说明里有数据位置与隐私一节）
+          # 绿色版四件套：exe + 许可证 + 中英文说明（说明里有安装、数据位置与隐私）
           Copy-Item 'build\bin\PanelDock.exe' -Destination $staging
           Copy-Item 'LICENSE' -Destination $staging
           Copy-Item 'README.md' -Destination $staging
+          Copy-Item 'README.en.md' -Destination $staging
           Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $out
           Write-Output ("已打包 {0}（{1:N1} MB）" -f $out, ((Get-Item $out).Length / 1MB))
 
@@ -117,10 +139,18 @@ jobs:
 
             **校验**：SHA-256 见下方 `SHA256SUMS.txt`。
 
-            **未做代码签名**，Windows 首次运行会弹 SmartScreen：
-            点「更多信息」→「仍要运行」即可。签名需要购买证书，暂未办理。
+            **未做代码签名**，Windows 首次运行会弹 SmartScreen。这不是病毒告警，
+            是微软对所有未签名新程序的统一提示。**在 ZIP 上先解除锁定再解压就不会出现**：
 
-            完整说明见仓库 README。
+            ```
+            Unblock-File -Path .\\PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip
+            ```
+
+            已经解压的话：`Unblock-File -Path .\\PanelDock.exe`，或右键 exe → 属性 →
+            勾选「解除锁定」。签名需要代码签名证书，已申请开源免费签名（SignPath Foundation），
+            通过后不再有此提示。
+
+            完整说明见包内 README。
           files: |
             PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip
             SHA256SUMS.txt
