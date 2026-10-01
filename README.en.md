@@ -1,6 +1,6 @@
 # PanelDock
 
-A lightweight Windows desktop tool that opens LAN admin pages (OpenClash / Zashboard, router back-ends, NAS, and the like) in mutually isolated WebView2 sessions — a replacement for browser tabs that costs a fraction of the memory.
+A lightweight Windows desktop tool that gives every back-end page you want to glance at any second its own window — router consoles, NAS, OpenClash / Zashboard, ops dashboards, status monitors, e-commerce back-ends, digital-currency wallet consoles. Anything you open just to check that things are still fine: safe, fast and light, with one window and one isolated session per panel, and no more browser tabs piling up.
 
 *English · [简体中文](README.md)*
 
