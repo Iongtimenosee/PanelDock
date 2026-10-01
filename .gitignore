@@ -1,0 +1,19 @@
+build/bin
+node_modules
+frontend/dist
+
+# `go build ./...` 会在仓库根目录落下同名 exe（发布产物只认 build/bin/PanelDock.exe）
+/PanelDock.exe
+PanelDock.exe~
+# 临时预览页 / 截图 / 抛弃式脚本
+.workbuddy/tmp
+
+# 本地工作记忆（含开发日志、内网地址等过程记录，属于本机私有，不随公开仓库分发）
+.workbuddy/memory/
+
+# 图标设计的迭代中间产物（约 24MB：探查图、裁剪对照、备份副本等）
+# 定稿资产本身已在 build/windows/icon.ico 与 build/appicon.png，是入库的；
+# 下面这些是过程物，需要时可从 .design-work 里的脚本重新生成，不必进版本库。
+.design-work/
+icon-candidates/
+PanelDock图标候选_assets/

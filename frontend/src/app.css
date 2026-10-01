@@ -1,0 +1,981 @@
+.shell {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 右上角操作区：目前只有明暗切换按钮，将来有同类动作也放这里。 */
+.topbar-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eyebrow,
+.section-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.topbar h1 {
+  margin: 6px 0 0;
+  color: var(--text-heading);
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: var(--text-subtitle);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 明暗切换：内联 SVG（太阳/月亮），显示哪一侧由 <html data-theme> 决定，
+   不用 JS 换图。浅色下显示月亮（点了去深色），深色下显示太阳。 */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+
+.theme-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-toggle .icon-sun {
+  display: none;
+}
+
+:root[data-theme='dark'] .theme-toggle .icon-sun {
+  display: block;
+}
+
+:root[data-theme='dark'] .theme-toggle .icon-moon {
+  display: none;
+}
+
+.workspace {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 0 24px;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.section-head h2 {
+  margin: 8px 0 0;
+  color: var(--text-heading);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.section-head button {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--on-accent);
+  background: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.section-head button:hover {
+  background: var(--accent-hover);
+}
+
+.panel-form {
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 14px;
+  align-items: end;
+}
+
+/* display:grid 会覆盖 hidden 属性的默认 display:none，需要显式还原。 */
+.panel-form[hidden] {
+  display: none;
+}
+
+.form-row {
+  display: grid;
+  gap: 6px;
+}
+
+.form-row label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form-row input[type='text'],
+.form-row input[type='url'] {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface-input);
+}
+
+.form-row input:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--focus-border);
+}
+
+.form-row-inline {
+  align-self: end;
+  padding-bottom: 10px;
+}
+
+.check-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  align-self: end;
+}
+
+.form-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.form-actions .primary {
+  border: 1px solid var(--accent);
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.form-actions button[type='button'] {
+  border: 1px solid var(--border-input);
+  color: var(--text-secondary);
+  background: var(--surface);
+}
+
+/* ─── 应用设置 ─────────────────────────────────────────────────────────────── */
+
+.settings-section {
+  margin-bottom: 34px;
+}
+
+.settings-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  display: grid;
+  gap: 10px;
+}
+
+.settings-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 说明文字里的「当前做不到」提示（如「有窗口会最小化到托盘 → 托盘图标撤不掉」）：
+   与普通说明区分开，但不要像报错那样刺眼。 */
+.settings-hint.is-warn {
+  color: var(--warn-text);
+}
+
+/* 表单内的说明文字：.panel-form 是 3 列网格，说明必须横跨整行。 */
+.form-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* 表单里的硬性风险提示（如「远程地址务必用 https」）：红字加粗，
+   与 .form-hint 的普通说明拉开层级，别让用户当它是可有可无的补充。 */
+.form-alert {
+  margin: 0 0 10px;
+  color: var(--danger-text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.settings-row {
+  margin-top: 6px;
+  max-width: 520px;
+}
+
+.settings-row select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface-input);
+}
+
+.settings-row select:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--focus-border);
+}
+
+/* 设置区的按钮排（如「导出/导入配置」）：横排、按钮间距 8px。 */
+.settings-row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.panel-list {
+  display: grid;
+  gap: 12px;
+}
+
+/* 孤儿 profile 残留提示条：列表上方的警示区块，清完即隐藏。 */
+.orphan-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border: 1px solid var(--banner-border);
+  border-radius: 10px;
+  background: var(--banner-bg);
+  margin-bottom: 12px;
+}
+
+.orphan-banner-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.orphan-banner .settings-hint {
+  margin: 4px 0 0;
+}
+
+.panel-card {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+/* 卡片头部固定两行：第一行只放面板名，第二行是「状态徽章 + 操作按钮」。
+   此前名称与徽章同处一个可换行的 flex 行、操作按钮在右侧，名称一长就会把按钮挤到下一行，
+   于是同一种卡片在不同面板上排版不一致。现在名称独占一行，长短只影响它自己那行。 */
+.panel-card-head {
+  display: grid;
+  gap: 10px;
+}
+
+.panel-name {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-heading);
+  font-size: 16px;
+  line-height: 1.3;
+  /* 名称里出现超长无空格串（URL、长英文单词）时在卡片内折行，而不是撑破卡片边框。 */
+  overflow-wrap: anywhere;
+}
+
+/* 卡片头部第一行：面板名 + 启用 / 停用徽章。
+   名称放在前面、徽章紧随其后；名称超长时由 .panel-name 自己折行（min-width:0 + overflow-wrap），
+   徽章 flex:none 保证不被压缩变形。 */
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.state-pill {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.state-pill.enabled {
+  color: var(--ok-text);
+  background: var(--ok-bg);
+}
+
+.state-pill.disabled {
+  color: var(--neutral-pill-text);
+  background: var(--neutral-pill-bg);
+}
+
+.panel-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.panel-card-actions button {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.panel-card-actions .ghost {
+  border: 1px solid var(--border-input);
+  color: var(--text-secondary-strong);
+  background: var(--surface);
+}
+
+.panel-card-actions .ghost:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+}
+
+.panel-card-actions .ghost:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.panel-card-actions .danger {
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.panel-card-actions .danger:hover {
+  background: var(--danger-bg-hover);
+}
+
+/* 「重置数据」：会丢数据，但面板本身还在，所以用警示色而不是删除那个红 ——
+   一眼能看出它会丢东西，又不至于和「删除面板」混为一谈。 */
+.panel-card-actions .warn {
+  border: 1px solid var(--warn-border);
+  color: var(--warn-text);
+  background: var(--warn-bg);
+}
+
+.panel-card-actions .warn:hover:not(:disabled) {
+  border-color: var(--warn-border-hover);
+  background: var(--warn-bg-hover);
+}
+
+.panel-card-actions .warn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.toggle input {
+  accent-color: var(--accent);
+}
+
+.panel-url {
+  margin: 12px 0 0;
+  color: var(--link);
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.panel-meta {
+  margin: 6px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.empty-hint {
+  padding: 32px 16px;
+  border: 1px dashed var(--border-input);
+  border-radius: 10px;
+  color: var(--text-faint);
+  text-align: center;
+  font-size: 14px;
+}
+
+.footnote {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 18px 0 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ─── 标签管理区域 ───────────────────────────────────────────────────────────── */
+
+.tabs-section {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-subtle);
+}
+
+.tabs-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.tabs-section-head label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.btn-sm:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-danger-sm {
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.btn-danger-sm:hover {
+  background: var(--danger-bg-hover);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.pf-tabs {
+  display: grid;
+  gap: 8px;
+}
+
+.pf-tab-item {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.pf-tab-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.pf-tab-row .pf-tab-name {
+  width: 160px;
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.pf-tab-row .pf-tab-url {
+  flex: 1;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.pf-tab-row .pf-tab-name:focus,
+.pf-tab-row .pf-tab-url:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--focus-border);
+}
+
+/* ─── 标签排序（拖拽把手 + ↑ ↓ 按钮）────────────────────────────────────────── */
+
+/* 序号徽标：让「当前顺序」一眼可见，排序结果不用靠猜。 */
+.pf-tab-order {
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* 拖拽把手只在标签多于一个时才渲染。它是唯一 draggable 的元素 ——
+   若把整个 .pf-tab-item 设为 draggable，里面的输入框就没法用鼠标框选文本了。 */
+.pf-tab-handle {
+  flex-shrink: 0;
+  width: 20px;
+  color: var(--text-faint);
+  cursor: grab;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+  user-select: none;
+}
+
+.pf-tab-handle:active {
+  cursor: grabbing;
+}
+
+.pf-tab-move {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-tab-move button {
+  width: 24px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.pf-tab-move button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.pf-tab-move button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* 拖拽落点提示：贴着目标项的上/下边缘画一条蓝线。 */
+.pf-tab-item.is-drop-before {
+  box-shadow: 0 -3px 0 0 var(--focus-border);
+}
+
+.pf-tab-item.is-drop-after {
+  box-shadow: 0 3px 0 0 var(--focus-border);
+}
+
+.pf-tab-item.is-dragging {
+  opacity: 0.4;
+}
+
+.pf-tabs-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ─── 关闭后的浏览器状态（保留 / 清空）──────────────────────────────────────── */
+
+/* 表单里的「成组选项」版式：会话状态、账号密码各一块。
+   choice-section 是它的通用名字，session-section 是历史名字，两者共用一份声明。 */
+.session-section,
+.choice-section {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+/* 一行一个选项：单选钮占第一列并跨两行，标题与说明各占一行。
+   顺序为「单选钮 / 标题 / 说明」，grid 自动排版会把说明落到第二行第二列。 */
+.radio-line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.radio-line input[type='radio'] {
+  grid-row: span 2;
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+}
+
+.radio-line .radio-title {
+  color: var(--text-secondary-strong);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.radio-line .radio-desc {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* 选中项轻微高亮：两个选项的后果差别很大（会不会丢登录态），状态要一眼可见。 */
+.radio-line:has(input:checked) {
+  border-color: var(--radio-checked-border);
+  background: var(--radio-checked-bg);
+}
+
+/* ─── 面板卡片中的标签展示 ────────────────────────────────────────────────────── */
+
+.panel-tabs-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.tab-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--chip-border);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-chip.empty {
+  background: var(--chip-empty-bg);
+  color: var(--chip-empty-text);
+  border-color: var(--chip-empty-border);
+}
+
+/* ─── 删除确认对话框 ─────────────────────────────────────────────────────────── */
+
+.confirm-dialog {
+  width: min(560px, calc(100vw - 48px));
+  max-height: 85vh;
+  overflow: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 24px 60px var(--shadow);
+}
+
+.confirm-dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.confirm-form {
+  display: grid;
+  gap: 12px;
+  padding: 22px 24px 20px;
+}
+
+.confirm-form h2 {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: 19px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.confirm-message {
+  margin: 0;
+  color: var(--text-subtitle);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 不可撤销的硬后果（如「删除面板会连浏览器数据一起清空」）：红字加粗。
+   与 .confirm-footnote（12px 灰字备注）刻意拉开层级 —— 这条混在备注里等于没写。 */
+.confirm-warning {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.confirm-option {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.confirm-option .check-line {
+  color: var(--text-secondary-strong);
+  font-weight: 600;
+}
+
+/* 没有快捷方式时整个可选项禁用并置灰，避免给出无从执行的承诺。 */
+.confirm-option .check-line:has(input:disabled) {
+  cursor: not-allowed;
+  color: var(--text-faint);
+}
+
+.confirm-option-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.shortcut-list {
+  display: grid;
+  gap: 4px;
+  max-height: 132px;
+  margin: 2px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+/* display:grid 会覆盖 hidden 属性的默认 display:none，需要显式还原（同 .panel-form[hidden]）。 */
+.shortcut-list[hidden] {
+  display: none;
+}
+
+/* 固定到任务栏的引导：编号步骤 */
+.pin-steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-secondary-strong);
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.pin-steps strong {
+  color: var(--text-strong);
+}
+
+.shortcut-list li {
+  padding: 5px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.confirm-footnote {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 脚注兼作失败信息的落点（如「没能打开资源管理器」），此时改用告警色。 */
+.confirm-footnote.is-warn {
+  color: var(--warn-text);
+}
+
+/* 刷新图标：图标预览与元信息 */
+.icon-preview-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.icon-preview {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: contain;
+  /* 棋盘底：图标多半带透明边，压在纯色上会看不出来是不是透明的 */
+  background:
+    linear-gradient(45deg, var(--border-subtle) 25%, transparent 25%, transparent 75%, var(--border-subtle) 75%) 0 0 / 12px 12px,
+    linear-gradient(45deg, var(--border-subtle) 25%, transparent 25%, transparent 75%, var(--border-subtle) 75%) 6px 6px / 12px 12px,
+    var(--surface);
+}
+
+.icon-preview-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.confirm-actions button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.confirm-actions button:hover {
+  background: var(--surface-subtle);
+}
+
+/* 主行动按钮（对话框里那个「真正要做的事」）。此前 .confirm-actions 下的 .primary
+   没有任何样式规则，等于白写了 class —— 顺手补上。 */
+.confirm-actions .primary {
+  border-color: var(--accent);
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.confirm-actions .primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.confirm-actions .danger-solid {
+  border-color: var(--danger);
+  color: var(--on-accent);
+  background: var(--danger);
+}
+
+.confirm-actions .danger-solid:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+}
+
+.confirm-actions button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    padding: 24px;
+  }
+
+  .topbar {
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    align-self: flex-start;
+  }
+
+  .panel-form {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-tab-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pf-tab-row .pf-tab-name {
+    width: 100%;
+  }
+}

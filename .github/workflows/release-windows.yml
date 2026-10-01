@@ -1,0 +1,126 @@
+name: Windows Release
+
+# 阶段 6 计划：先发 ZIP 绿色版，NSIS 安装包后置。
+# 两种触发方式：打 tag（v1.0.0 这样），或在 Actions 页面手动点（填版本号）。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，例如 v1.0.0'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: 准备 Node（前端构建用）
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Wails 官方维护的构建 action，负责 CGO 所需的本机工具链。这类依赖自己装
+      # 容易踩坑且难排查，用官方版本。
+      #
+      # ⚠️ `package: false` 不能改成默认的 true。该 action 在 package=true 时会自己
+      # 跑 release，上传 `*/bin/*` —— 那是 build/bin 下的**整个目录**。便携模式的
+      # data/（面板配置 + 登录会话）一旦落在那儿就会被一并发到公开 Release 上。
+      # 本工作流改为自己挑文件打包（只发 exe + LICENSE + README），与其重复也不安全。
+      #
+      # `build-platform` 默认是 darwin/universal，必须显式指定 windows/amd64。
+      # 产物固定为 build/bin/PanelDock.exe。
+      - name: 构建 Windows x64 发行版
+        uses: dAppServer/wails-build-action@v2.2.0
+        with:
+          build-name: PanelDock.exe
+          build-platform: windows/amd64
+          package: false
+          nsis: false         # 阶段 6：先发 ZIP 绿色版，安装包后置
+          go-version: '1.25'
+
+      - name: 定位构建产物
+        id: locate
+        shell: pwsh
+        run: |
+          $exe = Join-Path $pwd 'build\bin\PanelDock.exe'
+          if (-not (Test-Path $exe)) {
+            Write-Error "没找到构建产物：$exe"
+            exit 1
+          }
+          # 发布只允许 exe 本体。
+          # build\bin 下若出现 data 目录，那是运行时的便携模式数据
+          # （config.json + WebViewProfiles 登录会话），绝不能随包发出去。
+          $stray = Join-Path $pwd 'build\bin\data'
+          if (Test-Path $stray) {
+            Write-Error "build\bin\data 存在，可能夹带本机面板配置与登录会话，中止打包"
+            exit 1
+          }
+          Write-Output "exe=$exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output ("体积 {0:N1} MB" -f ((Get-Item $exe).Length / 1MB))
+
+      - name: 解析版本号
+        id: ver
+        shell: pwsh
+        run: |
+          $v = '${{ github.event.inputs.version }}'
+          if (-not $v) { $v = '${{ github.ref_name }}' }
+          Write-Output "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output "本次版本：$v"
+
+      - name: 打包 ZIP 绿色版
+        shell: pwsh
+        run: |
+          $out = "PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip"
+          $staging = Join-Path $env:RUNNER_TEMP 'PanelDock-pkg'
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          # 绿色版三件套：exe + 许可证 + 说明（说明里有数据位置与隐私一节）
+          Copy-Item 'build\bin\PanelDock.exe' -Destination $staging
+          Copy-Item 'LICENSE' -Destination $staging
+          Copy-Item 'README.md' -Destination $staging
+          Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $out
+          Write-Output ("已打包 {0}（{1:N1} MB）" -f $out, ((Get-Item $out).Length / 1MB))
+
+      - name: 计算 SHA-256
+        id: sha
+        shell: pwsh
+        run: |
+          $asset = "PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip"
+          $hash = (Get-FileHash -Path $asset -Algorithm SHA256).Hash.ToLower()
+          Write-Output "hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Set-Content -Path 'SHA256SUMS.txt' -Value "$hash  $asset" -Encoding ASCII
+          Get-Content 'SHA256SUMS.txt'
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          name: PanelDock ${{ steps.ver.outputs.version }}
+          # 未做代码签名，必须明说：用户会看到 SmartScreen 提示。
+          body: |
+            绿色版，解压即用（无需安装）。Windows 10 / 11 x64，需已安装 WebView2 Runtime
+            （Windows 11 与更新的 Windows 10 通常自带）。
+
+            **校验**：SHA-256 见下方 `SHA256SUMS.txt`。
+
+            **未做代码签名**，Windows 首次运行会弹 SmartScreen：
+            点「更多信息」→「仍要运行」即可。签名需要购买证书，暂未办理。
+
+            完整说明见仓库 README。
+          files: |
+            PanelDock-${{ steps.ver.outputs.version }}-windows-x64.zip
+            SHA256SUMS.txt

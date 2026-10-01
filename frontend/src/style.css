@@ -1,0 +1,163 @@
+/* ─── 配色 token ───────────────────────────────────────────────────────────────
+   管理界面的全部颜色都收敛成语义 token，明暗两套映射挂 <html data-theme>（light/dark，
+   缺省按 light 兜底）。规则：
+   - app.css 里不允许再写裸色值 —— hover / 徽章 / 警示色一律走 token；
+   - 新增颜色时先在这里给两个主题各配一份；
+   - theme_windows.go 的 windowBackgroundLight/Dark（窗口原生底色）必须与两侧 --bg
+     同值：WebView 首帧之前、窗口缩放空隙里露出的就是它，对不上就是一圈异色。
+   主题取值与切换逻辑见 main.js 的「界面配色」一节；防闪脚本在 index.html <head>。 */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-subtle: #f8fafc;
+  --surface-input: #fbfcfe;
+  --border: #d9dde3;
+  --border-subtle: #e2e8f0;
+  --border-input: #cbd5e1;
+  --border-strong: #94a3b8;
+
+  --text: #1f2937;
+  --text-heading: #172033;
+  --text-strong: #0f172a;
+  --text-secondary: #475569;
+  --text-secondary-strong: #334155;
+  --text-muted: #64748b;
+  --text-subtitle: #526174;
+  --text-faint: #94a3b8;
+
+  --accent: #1e3a5f;
+  --accent-hover: #16304f;
+  --on-accent: #ffffff;
+  --focus-ring: #bfdbfe;
+  --focus-border: #3b82f6;
+  --link: #1d4ed8;
+
+  --danger: #b91c1c;
+  --danger-hover: #991b1b;
+  --danger-text: #d92d20;
+  --danger-bg: #fff7f7;
+  --danger-bg-hover: #fee2e2;
+  --danger-border: #fecaca;
+
+  --warn-text: #b45309;
+  --warn-bg: #fffbeb;
+  --warn-bg-hover: #fef3c7;
+  --warn-border: #fed7aa;
+  --warn-border-hover: #fdba74;
+  --banner-bg: #fdf6e3;
+  --banner-border: #f0c36d;
+
+  --ok-text: #166534;
+  --ok-bg: #dcfce7;
+  --neutral-pill-text: #6b7280;
+  --neutral-pill-bg: #f3f4f6;
+
+  --chip-bg: #eff6ff;
+  --chip-text: #1d4ed8;
+  --chip-border: #bfdbfe;
+  --chip-empty-text: #9ca3af;
+  --chip-empty-bg: #f3f4f6;
+  --chip-empty-border: #e5e7eb;
+
+  --badge-bg: #eef2f7;
+  --radio-checked-bg: #f8fbff;
+  --radio-checked-border: #93c5fd;
+
+  --backdrop: rgba(15, 23, 42, 0.42);
+  --shadow: rgba(15, 23, 42, 0.24);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-subtle: #172033;
+  --surface-input: #141d2f;
+  --border: #334155;
+  --border-subtle: #273449;
+  --border-input: #3d4f68;
+  --border-strong: #64748b;
+
+  --text: #e2e8f0;
+  --text-heading: #f1f5f9;
+  --text-strong: #f8fafc;
+  --text-secondary: #a9b7ca;
+  --text-secondary-strong: #c3cedd;
+  --text-muted: #8a9bb0;
+  --text-subtitle: #9fb0c4;
+  --text-faint: #74859c;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --on-accent: #ffffff;
+  --focus-ring: rgba(59, 130, 246, 0.4);
+  --focus-border: #60a5fa;
+  --link: #93c5fd;
+
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-text: #f87171;
+  --danger-bg: #2b1416;
+  --danger-bg-hover: #3a1b1e;
+  --danger-border: #7f1d1d;
+
+  --warn-text: #fbbf24;
+  --warn-bg: #2a2110;
+  --warn-bg-hover: #382c13;
+  --warn-border: #7c4a10;
+  --warn-border-hover: #a16207;
+  --banner-bg: #241c0e;
+  --banner-border: #8a6a1d;
+
+  --ok-text: #4ade80;
+  --ok-bg: #12301f;
+  --neutral-pill-text: #94a3b8;
+  --neutral-pill-bg: #2a3648;
+
+  --chip-bg: #17293f;
+  --chip-text: #93c5fd;
+  --chip-border: #2b4d79;
+  --chip-empty-text: #74859c;
+  --chip-empty-bg: #26334a;
+  --chip-empty-border: #36455e;
+
+  --badge-bg: #26334a;
+  --radio-checked-bg: #142a45;
+  --radio-checked-border: #3b82f6;
+
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --shadow: rgba(0, 0, 0, 0.45);
+}
+
+:root {
+  color: var(--text);
+  background: var(--bg);
+  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}

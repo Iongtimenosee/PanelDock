@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>PanelDock</title>
+    <script>
+      // 防闪：在 CSS 生效前就把 <html data-theme> 定下来，否则深色用户每次启动都先看到白底。
+      // localStorage 只是配置（config.json settings.theme）的读透缓存 —— Wails 绑定在首帧前
+      // 不可用，拿不到后端配置；每次 main.js 应用主题时会同步镜像，两处永远只差一个启动瞬间，
+      // 且解析规则与 main.js 的 resolveEffectiveTheme 一致（缺缓存 / 缓存损坏 → 跟随系统）。
+      (function () {
+        var setting = null;
+        try { setting = localStorage.getItem('paneldock.theme'); } catch (e) { /* 隐私模式等，忽略 */ }
+        var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var effective = setting === 'light' || setting === 'dark'
+          ? setting
+          : (sysDark ? 'dark' : 'light');
+        document.documentElement.dataset.theme = effective;
+      })();
+    </script>
+</head>
+<body>
+<div id="app"></div>
+<script src="./src/main.js" type="module"></script>
+</body>
+</html>
