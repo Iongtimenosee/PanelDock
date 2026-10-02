@@ -91,6 +91,11 @@ Note: if Wails cannot find `npm` when launched from Git Bash, run `wails build` 
 
 Regression baseline: `go vet ./...` and `go test ./...` must both pass.
 
+Maintenance docs:
+
+- `AGENTS.md` — architecture map, hard rules, behavior contracts. For whoever picks this code up next.
+- `docs/pitfalls.md` — the pitfall list. Skim it before touching drawing code, Win32/COM, WebView2 vtables, or icon encoding.
+
 ## Data locations
 
 | What | Path |
@@ -189,7 +194,3 @@ PanelDock.exe --open <panelID> # lightweight launch: open that panel directly (u
 ```
 
 The entire command surface is one parameter, `--open`, taking a **panel ID**. For "direct to a single tab", create a panel containing one tab — tab-level parameters (the old `--tag-id` / `--tag` design) were dropped.
-
-## Roadmap (see 方案讨论记录.md)
-
-- ~~Configuration import / export / backup~~ (done, 2026-10-01: config.json only, see "Features"; icons and login data deliberately excluded).
