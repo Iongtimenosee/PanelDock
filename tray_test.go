@@ -111,6 +111,324 @@ func TestAppTrayNeeded(t *testing.T) {
 	}
 }
 
+// TestTrayHiddenQueue 覆盖托盘菜单「已隐藏的窗口」队列的四条规则：
+// 按顺序记录、重复隐藏移到队尾（末位即最近）、窗口恢复后立即出队、窗口消失后不能留下幻影项。
+// 队列是菜单的唯一数据源，漏sticks一条就会列一个点了没反应的名字。
+func TestTrayHiddenQueue(t *testing.T) {
+	app := newTestApp(t)
+	p1 := addStuckPanel(app, "p1")
+	p2 := addStuckPanel(app, "p2")
+
+	p1.setHiddenInTray(true)
+	p2.setHiddenInTray(true)
+	assertTrayOrder(t, app, "p1", "p2")
+
+	// 重复隐藏同一个窗口：不能重复入队，且它成为「最近一次」，双击优先轮到它。
+	p1.setHiddenInTray(true)
+	assertTrayOrder(t, app, "p2", "p1")
+
+	if got := app.lastTrayHidden(); got != p1 {
+		t.Errorf("双击应作用于最近一次隐藏的窗口 p1，实际 %v", got)
+	}
+
+	// 恢复显示 → 从菜单里消失。
+	p1.setHiddenInTray(false)
+	assertTrayOrder(t, app, "p2")
+
+	// 窗口已经不存在（dispose 后）但队列还没清：列出时必须被过滤掉，
+	// 否则菜单里会出现一条点了没反应的名字。
+	app.mu.Lock()
+	delete(app.panels, "p2")
+	app.mu.Unlock()
+	if got := app.trayHiddenPanels(); len(got) != 0 {
+		t.Errorf("窗口已销毁后不应再出现在菜单里，实际剩 %d 项", len(got))
+	}
+
+	// 面板被删除 / 关闭的清理入口会把队列一并摘干净（idempotent）。
+	app.forgetTrayHidden("p2")
+	assertTrayOrder(t, app)
+}
+
+// TestTrayDoubleClickTogglesBetweenStates 覆盖双击托盘图标的来回开关语义：
+// 同一个窗口被反复「拿回来 ⇄ 收回去」，不必先把它放到桌面上点 X 才能再双击收起。
+//
+// 这正是上一版缺的那一段 —— 队列里只装藏着的窗口，一经恢复就再也轮不到它了，
+// 于是第二次双击无事可做（实测现象：必须关掉窗口再双击才能重新拿到它）。
+func TestTrayDoubleClickTogglesBetweenStates(t *testing.T) {
+	app := newTestApp(t)
+	p1 := addStuckPanel(app, "p1")
+	p2 := addStuckPanel(app, "p2")
+
+	// 两个都先藏起来：队列末位（p2）是双击的第一个目标。
+	p1.setHiddenInTray(true)
+	p2.setHiddenInTray(true)
+
+	// 第 1 次双击：拿回 p2，菜单里只剩 p1。
+	app.trayActivateLastHidden()
+	assertTrayHiddenState(t, p2, false)
+	assertTrayOrder(t, app, "p1")
+
+	// 第 2 次双击：把同一个窗口收回去（而不是去动队列里的 p1）。
+	app.trayActivateLastHidden()
+	assertTrayHiddenState(t, p2, true)
+	assertTrayOrder(t, app, "p1", "p2")
+
+	// 第 3 次双击：还能再拿回来 —— 这才是「不停双击不停来回」。
+	app.trayActivateLastHidden()
+	assertTrayHiddenState(t, p2, false)
+	assertTrayOrder(t, app, "p1")
+
+	// 目标始终锁在同一个窗口上，不随队列漂移。
+	if got := app.trayToggleTarget(); got != p2 {
+		t.Errorf("双击目标应锁在 p2 上，实际 %v", got)
+	}
+
+	// 目标被销毁（这是真实删除路径会走的清理）：双击换到队列里下一个，
+	// 不能对着一个已经死掉的对象反复空转。
+	markPanelClosed(p2)
+	if app.trayToggleTarget() != nil {
+		t.Error("目标窗口已销毁：trayToggleTarget 应失效")
+	}
+	app.trayDropToggleTarget("p2")
+	app.trayActivateLastHidden()
+	assertTrayHiddenState(t, p1, false)
+	assertTrayOrder(t, app)
+}
+
+// TestLightweightCloseSkipsTrayHideUntilTrayUsed 轻量模式（快捷方式直达）下，
+// 用户还没在托盘上操作过任何窗口时，「最小化到托盘」这一步会被跳过、直接关掉面板 ——
+// 进程马上就要收工，藏起来的窗口再也没机会被拿出来。
+// 一旦他真的在托盘上操作过一次，就让位于他的意图，之后照旧藏起来。
+func TestLightweightCloseSkipsTrayHideUntilTrayUsed(t *testing.T) {
+	app := newTestApp(t)
+	app.mu.Lock()
+	app.lightweight = true
+	app.mu.Unlock()
+	if err := app.config.setCloseAction(CloseActionTray); err != nil {
+		t.Fatalf("setCloseAction(tray): %v", err)
+	}
+	panel := addStuckPanel(app, "p1")
+
+	if !app.closeSkipsTrayHide() {
+		t.Fatal("轻量模式 + 未用过托盘 + 最后一个面板：应跳过「藏到托盘」")
+	}
+
+	// 走真实关闭路径（设置已记住 tray，不会弹询问框）：必须去关窗口，而不是藏起来。
+	panel.handleInteractiveClose()
+	if panel.isHiddenInTray() {
+		t.Error("跳过时不应把窗口藏到托盘 —— 进程马上收工，藏了也拿不回来")
+	}
+	if !panelCloseRequested(panel) {
+		t.Error("跳过时应当直接关掉这个面板窗口")
+	}
+
+	// 关键是**开着第二个面板时同样要跳过**。只放过"最后一个"是不够的：那样第一个窗口
+	// 会被藏进托盘，但它仍占着运行表的位置，于是第二个也永远轮不上"最后一个"，
+	// 两个窗口一起赖在托盘里，进程再也不退出 —— 用户实测到的正是这个。
+	second := addStuckPanel(app, "p2")
+	if !app.closeSkipsTrayHide() {
+		t.Error("还有其它面板时同样应跳过「藏到托盘」")
+	}
+	second.handleInteractiveClose()
+	if second.isHiddenInTray() {
+		t.Error("多面板时也不该把窗口藏到托盘：藏了它就一直是运行表里的「还没关」")
+	}
+	if !panelCloseRequested(second) {
+		t.Error("多面板时同样应当直接关掉这个面板窗口")
+	}
+
+	// 用户在托盘上操作过一次窗口：他开始依赖托盘了，此后轻量模式让位于他的意图。
+	app.markTrayToggleTarget(second)
+	app.mu.Lock()
+	delete(app.panels, "p2")
+	app.mu.Unlock()
+
+	third := addStuckPanel(app, "p3")
+	if app.closeSkipsTrayHide() {
+		t.Error("用过托盘之后：即使只剩最后一个面板也应照常藏到托盘")
+	}
+	third.handleInteractiveClose()
+	assertTrayHiddenState(t, third, true)
+	if panelCloseRequested(third) {
+		t.Error("用过托盘之后不应再去关窗口")
+	}
+}
+
+// TestTrayMenuCommandClosesPanelForGood 托盘菜单里的「彻底关闭」子菜单：
+// 选中它就真的把这个窗口关掉，而不是藏回托盘（藏回去等于什么都没发生）。
+//
+// 这条 API 的来历：菜单里最早有一项「关闭面板」，在把菜单改成「已隐藏的窗口列表」时被删了，
+// 于是最小化到托盘的窗口再也没有"在这里丢掉它"的办法 —— 只能先取回再点 X，而点 X 又会被
+// 记住的「最小化到托盘」再送回来。
+func TestTrayMenuCommandClosesPanelForGood(t *testing.T) {
+	app := newTestApp(t)
+	if err := app.config.setCloseAction(CloseActionTray); err != nil {
+		t.Fatalf("setCloseAction(tray): %v", err)
+	}
+
+	first := addStuckPanel(app, "p1")
+	second := addStuckPanel(app, "p2")
+	first.hideToTray()
+	second.hideToTray()
+	targets := app.trayHiddenPanels()
+
+	// 主列表那组的语义不变：点名字是「取回」。
+	app.trayHandleMenuCommand(targets, trayMenuRestoreBase+1)
+	assertTrayHiddenState(t, second, false)
+
+	// 「彻底关闭」那一组：换成真关。
+	app.trayHandleMenuCommand(targets, trayMenuCloseHiddenBase)
+	if !panelCloseRequested(first) {
+		t.Error("选中「彻底关闭」应当真的关掉那个面板窗口")
+	}
+	// 替身窗口收不到真正的销毁流程，hiddenInTray 不会被清掉，所以这里能验的恰恰是
+	//「没有走取回那条路」：showFromTray 会把它置为 false。
+	if !first.isHiddenInTray() {
+		t.Error("彻底关闭不是「取回」：不该把窗口从托盘里拿到桌面上")
+	}
+
+	// 菜单被取消（TPM_RETURNCMD 返回 0）：什么都不动。
+	if app.trayHandleMenuCommand(targets, 0); panelCloseRequested(second) {
+		t.Error("取消菜单不应带来任何动作")
+	}
+
+	// 下标越界（窗口在菜单弹出期间就消失了）：不能崩，也不能误伤别人。
+	app.trayHandleMenuCommand(targets, trayMenuCloseHiddenBase+uintptr(len(targets)+5))
+}
+
+// TestLightweightQuitsAfterEveryPanelClosed 是用户实测出的回归：轻量模式下同时开着两个
+// 面板，逐个关掉之后进程必须退出。
+//
+// 藏进托盘的窗口**仍然占着运行表的位置**，所以「还有别的面板」这条判断会一路成立到最后 ——
+// 跳过托盘必须对每个面板都生效，只放过"最后一个"的话，第一个就先被藏起来了。
+func TestLightweightQuitsAfterEveryPanelClosed(t *testing.T) {
+	app := newTestApp(t)
+	app.mu.Lock()
+	app.lightweight = true
+	app.mu.Unlock()
+	if err := app.config.setCloseAction(CloseActionTray); err != nil {
+		t.Fatalf("setCloseAction(tray): %v", err)
+	}
+	if err := app.config.setShowTrayIcon(true); err != nil {
+		t.Fatalf("setShowTrayIcon: %v", err)
+	}
+
+	first := addStuckPanel(app, "p1")
+	second := addStuckPanel(app, "p2")
+
+	// 第一个不是"最后一个"，但同样得真关：一旦它被藏进托盘，"还有窗口"就永远成立。
+	first.handleInteractiveClose()
+	if first.isHiddenInTray() {
+		t.Fatal("第一个面板不该被藏进托盘")
+	}
+	disposePanelFromRuntime(app, first)
+	if app.shouldQuitAfterPanelClosed() {
+		t.Error("还有一个面板没关时不应收工")
+	}
+
+	second.handleInteractiveClose()
+	if second.isHiddenInTray() {
+		t.Fatal("最后一个面板同样不该被藏进托盘")
+	}
+	disposePanelFromRuntime(app, second)
+	if !app.shouldQuitAfterPanelClosed() {
+		t.Error("轻量模式下关掉全部面板后应收工：开几个面板都不能破例")
+	}
+}
+
+// TestLightweightStaysWhenTrayUsed 与上面同一场景，但用户先在托盘上操作过窗口：
+// 此后轻量模式让位于他，最后一个面板关掉后进程留在托盘里。
+func TestLightweightStaysWhenTrayUsed(t *testing.T) {
+	app := newTestApp(t)
+	app.mu.Lock()
+	app.lightweight = true
+	app.mu.Unlock()
+	if err := app.config.setCloseAction(CloseActionTray); err != nil {
+		t.Fatalf("setCloseAction(tray): %v", err)
+	}
+
+	first := addStuckPanel(app, "p1")
+	second := addStuckPanel(app, "p2")
+
+	// 用户在托盘上切换过窗口：他正在用托盘，「用完即走」就此让位。
+	app.markTrayToggleTarget(first)
+
+	first.handleInteractiveClose()
+	if !first.isHiddenInTray() {
+		t.Fatal("用过托盘之后应照旧藏到托盘")
+	}
+	disposePanelFromRuntime(app, first)
+	if app.shouldQuitAfterPanelClosed() {
+		t.Error("还有第二个面板时不该收工")
+	}
+
+	second.handleInteractiveClose()
+	if !second.isHiddenInTray() {
+		t.Fatal("用过托盘之后最后一个面板也应藏到托盘")
+	}
+}
+
+// disposePanelFromRuntime 模拟窗口真的关闭：替身窗口走不到 dispose → onPanelClosed，
+// 这里手工执行其中的运行表清理部分（也就是进程寿命判定真正依赖的那几笔）。
+func disposePanelFromRuntime(app *App, p *panelWindow) {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	delete(app.panels, p.id)
+	app.trayHiddenOrder = removeFromOrder(app.trayHiddenOrder, p.id)
+	app.trayDropToggleTargetLocked(p.id)
+}
+
+// TestNormalModeKeepsTrayHide 常规启动不受「跳过藏托盘」影响：
+// 那里没有「用完即走」，管理窗口还开着，把面板藏起来本来就是用户的意思。
+func TestNormalModeKeepsTrayHide(t *testing.T) {
+	app := newTestApp(t)
+	app.mu.Lock()
+	app.mainShown = true
+	app.mu.Unlock()
+	if err := app.config.setCloseAction(CloseActionTray); err != nil {
+		t.Fatalf("setCloseAction(tray): %v", err)
+	}
+	panel := addStuckPanel(app, "p1")
+
+	if app.closeSkipsTrayHide() {
+		t.Fatal("常规模式不应跳过「藏到托盘」")
+	}
+	panel.handleInteractiveClose()
+	assertTrayHiddenState(t, panel, true)
+	if panelCloseRequested(panel) {
+		t.Error("常规模式应照常把窗口藏到托盘，不去关它")
+	}
+}
+
+// assertTrayHiddenState 校验某个面板窗口此刻是否藏在托盘里。
+func assertTrayHiddenState(t *testing.T, p *panelWindow, want bool) {
+	t.Helper()
+	if got := p.isHiddenInTray(); got != want {
+		t.Errorf("窗口 %s 的托盘隐藏状态 = %v，期望 %v", p.id, got, want)
+	}
+}
+
+// markPanelClosed 模拟窗口已经销毁（dispose 已跑过）。
+func markPanelClosed(p *panelWindow) {
+	p.mu.Lock()
+	p.closed = true
+	p.mu.Unlock()
+}
+func assertTrayOrder(t *testing.T, app *App, want ...string) {
+	t.Helper()
+	app.mu.Lock()
+	got := append([]string(nil), app.trayHiddenOrder...)
+	app.mu.Unlock()
+	if len(got) != len(want) {
+		t.Fatalf("队列长度 = %d（%v），期望 %d（%v）", len(got), got, len(want), want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("队列第 %d 项 = %q，期望 %q（完整：%v）", i, got[i], want[i], got)
+		}
+	}
+}
+
 // TestSetCloseActionForcesTrayIcon 验证桥接层把「选中最小化到托盘 → 托盘图标自动打开」
 // 收尾干净：配置改了、图标真的算作需要、取消勾选会被明确拒绝；改回去之后又允许取消。
 func TestSetCloseActionForcesTrayIcon(t *testing.T) {

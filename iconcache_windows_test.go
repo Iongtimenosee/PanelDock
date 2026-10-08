@@ -654,7 +654,7 @@ func TestApplyPanelIconRewritesEveryShortcut(t *testing.T) {
 // TestApplyPanelIconCreatesShortcutWhenDesktopHasNone 桌面没有快捷方式时，
 // 「刷新图标」不能只是把 .ico 悄悄存下来 —— 它顺手创建一份桌面快捷方式并用上这个图标。
 //
-// 否则用户点完在桌面上什么都看不到，只是文件夹里多了个文件（2026-09-30 用户原话：
+// 否则用户点完在桌面上什么都看不到，只是文件夹里多了个文件
 // 「刷新图标后只是下载保存动作，这没啥意义」）。前端主按钮据此叫「创建快捷方式并应用」。
 func TestApplyPanelIconCreatesShortcutWhenDesktopHasNone(t *testing.T) {
 	desktop, pinned := t.TempDir(), t.TempDir()

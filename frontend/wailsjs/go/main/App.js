@@ -18,10 +18,6 @@ export function CleanOrphanProfiles() {
   return window['go']['main']['App']['CleanOrphanProfiles']();
 }
 
-export function ClosePanel(arg1) {
-  return window['go']['main']['App']['ClosePanel'](arg1);
-}
-
 export function CreatePanel(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreatePanel'](arg1, arg2, arg3);
 }

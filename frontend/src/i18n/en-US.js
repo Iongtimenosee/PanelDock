@@ -15,7 +15,7 @@ export const enUS = {
 
   'settings.trayLabel': 'Show tray icon',
   'settings.trayHint':
-    'Keeps a PanelDock icon in the system tray (hosted by a background window, regardless of how many panels are open). Right-click it for Open manager, Show/hide panel, Always on top, Close panel and Quit PanelDock. In lightweight mode (direct shortcut launch) the main window is hidden and the tray menu is the easiest way back.',
+    'Keeps a PanelDock icon in the system tray (hosted by a background window, regardless of how many panels are open). Right-click to list every panel hidden in the tray and click a name to get it back; the "Close a window for good" submenu below actually closes one. Double-clicking the icon toggles the same window between restored and hidden. In lightweight mode (direct shortcut launch) the main window is hidden and the tray menu is the easiest way back.',
   'settings.trayForced':
     'The tray icon cannot be turned off right now: "When closing a panel window" below is set to "Minimize to tray" — such windows hide into the tray on close, and the icon is the only way to get them back. Change that setting first, then disable the icon.',
 
@@ -152,7 +152,7 @@ export const enUS = {
   'ic.message':
     'Saves the first tab\'s site icon as an .ico file (kept long-term in the icons folder next to the config) and switches the shortcuts below to it. Shortcuts created later pick it up automatically.',
   'ic.willCreate': 'There is no desktop shortcut for this group yet; one will be created.',
-  'ic.willOverwrite': 'The existing desktop shortcut will be overwritten (its file name is kept).',
+  'ic.willOverwrite': 'The existing desktop shortcut will be updated (its file name is synced to the current panel name).',
   'ic.cachedOverwrite': 'The icon file was saved before and will be overwritten.',
   'ic.duplicatesNote': '{count} other shortcut(s) of this group on the desktop will be cleaned up (one per group).',
   'ic.previewAlt': 'Icon preview',
@@ -224,14 +224,28 @@ export const enUS = {
   'tab.orderHint': 'This order is the tab order in the panel window; the active tab stays where it was.',
 
   // ─── Shortcut / taskbar / icon results ──────────────────────────────────
-  'shortcut.extraNote': '\n\nAlso, {count} extra shortcut(s) of this group on the desktop will be cleaned up:\n{list}',
-  'shortcut.iconNoteExisting': '\n\nIt will use the previously saved site icon.',
-  'shortcut.iconNoteNone': '\n\nTo use the site icon on the desktop, open this group first, then use "Icon" on the card.',
-  'shortcut.confirmOverwrite': 'The desktop already has a shortcut for "{name}":\n{path}{extra}\n\nOverwrite it?{iconNote}',
   'shortcut.created': 'Shortcut created on the desktop:\n{path}',
-  'shortcut.overwritten': 'Overwrote the existing desktop shortcut:\n{path}',
+  'shortcut.overwritten': 'Updated the existing desktop shortcut:\n{path}',
+  'shortcut.renamed': 'Replaced the old one on the desktop with:\n{path}',
   'shortcut.openHint': 'Double-click it to open "{name}" directly; it keeps working after the panel is renamed.',
   'shortcut.removedNote': 'Also cleaned up {count} extra shortcut(s) of this group:',
+
+  // Confirmation dialog shown when one already exists
+  'sc.sectionLabel': 'Desktop shortcut',
+  'sc.title': 'Desktop shortcut for "{name}"',
+  'sc.messageRename':
+    'The desktop already has a shortcut for this group, but its name no longer matches the panel name. Replace it with one named after the current panel name? The old one will be deleted.',
+  'sc.messageSame':
+    'The desktop already has a shortcut for this group. Bring it up to date? (target, icon and description are refreshed; the file name stays.)',
+  'sc.currentLabel': 'Currently on the desktop:',
+  'sc.afterLabel': 'After replacing:',
+  'sc.extraHint': 'These other shortcuts of the same group will be cleaned up too (one per group):',
+  'sc.iconNoteExisting': 'It will use the previously saved site icon.',
+  'sc.iconNoteNone': 'To use the site icon on the desktop, open this group first, then use "Icon" on the card.',
+  'sc.footnote':
+    'One shortcut per group: no second copy is created, and the old one is not left behind for you to guess which is which. Anything you pinned to the taskbar yourself is not managed by this tool.',
+  'sc.cancel': 'Keep the current one',
+  'sc.confirm': 'Update and replace',
 
   'taskbar.alreadyPinned': '"{name}" is already on the taskbar.\n\n{path}',
 

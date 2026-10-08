@@ -14,7 +14,7 @@ var assets embed.FS
 
 // appMainWindowTitle 是 Wails 管理窗口标题。
 // 关闭询问框需要把它当作 owner 居中显示，而 Wails v2 的 runtime 不暴露 HWND，
-// 因此按标题精确查找主窗口（面板窗口标题为 "PanelDock · 面板名"，不会误匹配）。
+// 因此按标题精确查找主窗口（面板窗口标题为 "面板名 · PanelDock"，整串不等，不会误匹配）。
 const appMainWindowTitle = "PanelDock"
 
 // parseAutoOpenArg 解析 --open <面板ID> 启动参数（直达面板，供快捷方式使用）。

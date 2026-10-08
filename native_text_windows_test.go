@@ -52,18 +52,13 @@ func TestNativeUITextsComplete(t *testing.T) {
 		tr := text.Tray
 		for name, v := range map[string]string{
 			"Tray.Tip":         tr.Tip,
-			"Tray.ShowHide":    tr.ShowHide,
-			"Tray.TopMost":     tr.TopMost,
-			"Tray.ClosePanel":  tr.ClosePanel,
+			"Tray.NoHidden":    tr.NoHidden,
 			"Tray.OpenManager": tr.OpenManager,
 			"Tray.Quit":        tr.Quit,
 		} {
 			if strings.TrimSpace(v) == "" {
 				t.Errorf("%s 的 %s 为空", lang, name)
 			}
-		}
-		if !strings.Contains(tr.ActiveSuffixFmt, "{name}") {
-			t.Errorf("%s 的 Tray.ActiveSuffixFmt 应含 {name} 占位符，实际 %q", lang, tr.ActiveSuffixFmt)
 		}
 	}
 }

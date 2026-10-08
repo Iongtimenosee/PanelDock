@@ -16,7 +16,7 @@ export const zhCN = {
 
   'settings.trayLabel': '在系统托盘显示图标',
   'settings.trayHint':
-    '托盘里常驻一个 PanelDock 图标（由后台常驻窗口承载，与打开几个面板无关）。右键可「打开管理面板」「显示/隐藏面板」「窗口置顶」「关闭面板」「退出 PanelDock」。轻量模式（快捷方式直达）下主窗口是隐藏的，托盘菜单是最方便的入口。',
+    '托盘里常驻一个 PanelDock 图标（由后台常驻窗口承载，与打开几个面板无关）。右键列出所有藏在托盘里的面板，点名字即取回；下方「彻底关闭窗口」子菜单会真的关掉某一个。双击图标是开关：在同一个窗口上来回「恢复 / 收回」。轻量模式（快捷方式直达）下主窗口是隐藏的，托盘菜单是最方便的入口。',
   'settings.trayForced':
     '托盘图标当前无法取消：下面的「关闭面板窗口时」被设置为「最小化到托盘」—— 面板窗口关闭后会藏进托盘，图标是找回它的唯一入口。要取消请先把它改成别的。',
 
@@ -153,7 +153,7 @@ export const zhCN = {
   'ic.message':
     '把这个分组第一个标签的网站图标存成一份 .ico 文件，放在配置旁边的 icons 文件夹里长期保留，并让下面这些快捷方式改用它。以后新建的快捷方式也会自动用它。',
   'ic.willCreate': '桌面还没有这个分组的快捷方式，本次会创建一个。',
-  'ic.willOverwrite': '桌面已有的那份快捷方式会被覆盖（文件名保留）。',
+  'ic.willOverwrite': '桌面已有的那份快捷方式会被更新（文件名同步为当前面板名）。',
   'ic.cachedOverwrite': '图标文件之前已经存过，本次会覆盖它。',
   'ic.duplicatesNote': '桌面上另外 {count} 个同分组的快捷方式会被清理掉（一个分组只留一份）。',
   'ic.previewAlt': '图标预览',
@@ -224,15 +224,26 @@ export const zhCN = {
     '{what}将从分组移除，它的浏览器数据（登录状态、已保存的密码等）会在保存时一并删除，不可恢复。\n\n确定要移除吗？',
   'tab.orderHint': '顺序即打开面板时标签栏的排列顺序；激活的仍是上次所在的标签。',
 
-  // ─── 快捷方式 / 任务栏 / 图式的动态结果 ─────────────────────────────────
-  'shortcut.extraNote': '\n\n另外还会清理桌面上多余的 {count} 个同分组快捷方式：\n{list}',
-  'shortcut.iconNoteExisting': '\n\n它会用上已经存好的站点图标。',
-  'shortcut.iconNoteNone': '\n\n桌面图标想用站点图标的话，先打开这个分组，再点「刷新图标」。',
-  'shortcut.confirmOverwrite': '桌面已经有「{name}」的快捷方式：\n{path}{extra}\n\n是否覆盖它？{iconNote}',
+  // ─── 快捷方式 / 任务栏 / 图标的动态结果 ─────────────────────────────────
   'shortcut.created': '已在桌面创建快捷方式：\n{path}',
-  'shortcut.overwritten': '已覆盖桌面原有的快捷方式：\n{path}',
+  'shortcut.overwritten': '已更新桌面原有的快捷方式：\n{path}',
+  'shortcut.renamed': '已把桌面上旧的那份换成：\n{path}',
   'shortcut.openHint': '双击即可直接打开「{name}」，面板改名后仍然有效。',
   'shortcut.removedNote': '顺带清理了多余的 {count} 个同分组快捷方式：',
+
+  // 桌面已有一份时的确认对话框
+  'sc.sectionLabel': '桌面快捷方式',
+  'sc.title': '「{name}」的桌面快捷方式',
+  'sc.messageRename': '桌面上已经有一份这个分组的快捷方式，名字和当前面板名不一致。要把它换成以当前面板名命名的那一份吗？旧的那份会被删掉。',
+  'sc.messageSame': '桌面上已经有一份这个分组的快捷方式。要把它更新到最新吗（目标、图标、备注同步，文件名不变）？',
+  'sc.currentLabel': '现在桌面上的是：',
+  'sc.afterLabel': '换成之后是：',
+  'sc.extraHint': '另外这几份同分组的快捷方式会一并清理（一个分组只留一份）：',
+  'sc.iconNoteExisting': '它会用上已经存好的站点图标。',
+  'sc.iconNoteNone': '桌面图标想用站点图标的话，先打开这个分组，再点「刷新图标」。',
+  'sc.footnote': '一个分组只留一份：不会新建第二份，也不会把旧的留着让你分不清点哪个。任务栏上你自己固定的那份不归本工具管。',
+  'sc.cancel': '保留现有，不改动',
+  'sc.confirm': '更新并替换',
 
   'taskbar.alreadyPinned': '「{name}」已经在任务栏上了。\n\n{path}',
 

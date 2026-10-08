@@ -317,6 +317,204 @@ func TestCollapsePanelDesktopShortcuts(t *testing.T) {
 	}
 }
 
+// ─── 面板改名 → 快捷方式改名 ────────────────────────────────────────────────────
+
+// readLnkFacts 读回 .lnk 的目标、参数与备注（真实 COM 读盘）。
+func readLnkFacts(t *testing.T, path string) (target, args, desc string) {
+	t.Helper()
+
+	err := shortcutWithCOM(func() error {
+		return withLoadedShortcut(path, func(link *shortcutIShellLinkW) error {
+			var err error
+			if target, err = shortcutGetPath(link); err != nil {
+				return err
+			}
+			if args, err = shortcutGetArguments(link); err != nil {
+				return err
+			}
+			if desc, err = shortcutGetDescription(link); err != nil {
+				return err
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		t.Fatalf("读取 %s: %v", path, err)
+	}
+	return target, args, desc
+}
+
+// TestUpdatePanelRenamesDesktopShortcut 锁定「面板改名时桌面快捷方式跟着改名」。
+//
+// 断言落在文件系统与 .lnk 内容上，而不是「调用没报错」——报错但没改名，正是这个 bug 的样子。
+func TestUpdatePanelRenamesDesktopShortcut(t *testing.T) {
+	desktop := t.TempDir()
+	restore := stubShortcutSeams(t, desktop)
+	defer restore()
+
+	app := newTestApp(t)
+	panel := createTestPanel(t, app, "旧名字")
+
+	created, err := app.CreatePanelShortcut(panel.ID)
+	if err != nil {
+		t.Fatalf("CreatePanelShortcut: %v", err)
+	}
+	if filepath.Base(created.Path) != "旧名字.lnk" {
+		t.Fatalf("快捷方式应以面板名命名，实际 %q", created.Path)
+	}
+
+	// 目标以 os.Executable() 为准（测试二进制名与 shortcutTestExeName 不同），
+	// 只断言「改名前后一致」——改名动的是文件名与备注，不该碰目标。
+	beforeTarget, _, _ := readLnkFacts(t, created.Path)
+
+	if _, err := app.UpdatePanel(panel.ID, "新名字", panel.Tabs[0].URL, true); err != nil {
+		t.Fatalf("UpdatePanel: %v", err)
+	}
+
+	want := filepath.Join(desktop, "新名字.lnk")
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("改名后桌面应有「新名字.lnk」: %v", err)
+	}
+	if _, err := os.Stat(created.Path); !os.IsNotExist(err) {
+		t.Errorf("旧的「%s」应已改名，不该还留在桌面", created.Path)
+	}
+	if n := countLnk(t, desktop); n != 1 {
+		t.Errorf("桌面应只剩 1 个 .lnk，实际 %d", n)
+	}
+	if cfg, _ := app.config.get(panel.ID); cfg.Shortcut != want {
+		t.Errorf("配置里应记下新路径，实际 %q", cfg.Shortcut)
+	}
+
+	// 内容：目标与参数必须原样（面板 ID 没变，快捷方式本来就还能用），备注跟着换名字。
+	target, args, desc := readLnkFacts(t, want)
+	if target != beforeTarget {
+		t.Errorf("目标不该被改动：%q -> %q", beforeTarget, target)
+	}
+	if !shortcutArgsMatchPanel(args, panel.ID) {
+		t.Errorf("参数不该被改动，实际 %q", args)
+	}
+	if desc != shortcutDescription("新名字") {
+		t.Errorf("备注应跟着改名，实际 %q", desc)
+	}
+}
+
+// TestUpdatePanelWithoutShortcutDoesNotCreateOne 面板从来没要过快捷方式时，改名不该凭空造一个。
+func TestUpdatePanelWithoutShortcutDoesNotCreateOne(t *testing.T) {
+	desktop := t.TempDir()
+	restore := stubShortcutSeams(t, desktop)
+	defer restore()
+
+	app := newTestApp(t)
+	panel := createTestPanel(t, app, "没有快捷方式")
+
+	if _, err := app.UpdatePanel(panel.ID, "改了名", panel.Tabs[0].URL, true); err != nil {
+		t.Fatalf("UpdatePanel: %v", err)
+	}
+	if n := countLnk(t, desktop); n != 0 {
+		t.Fatalf("桌面上不该凭空出现 .lnk，实际 %d 个", n)
+	}
+	if cfg, _ := app.config.get(panel.ID); cfg.Shortcut != "" {
+		t.Errorf("配置里不该凭空记下路径，实际 %q", cfg.Shortcut)
+	}
+}
+
+// TestUpdatePanelRenamesScannedShortcut 覆盖「配置里没记路径、只靠扫描认出来的那一份」。
+//
+// 现实里就是这么发生的：用户自己把 .lnk 改过名，配置里记的路径早已对不上，
+// 认出它只能靠扫描目标与参数 —— 这一份同样得跟着改名，否则用户看到的还是旧名字。
+func TestUpdatePanelRenamesScannedShortcut(t *testing.T) {
+	desktop := t.TempDir()
+	restore := stubShortcutSeams(t, desktop)
+	defer restore()
+
+	app := newTestApp(t)
+	panel := createTestPanel(t, app, "分组一")
+
+	old := writePanelShortcut(t, desktop, "我自己起的名字.lnk", panel.ID)
+
+	if _, err := app.UpdatePanel(panel.ID, "分组二", panel.Tabs[0].URL, true); err != nil {
+		t.Fatalf("UpdatePanel: %v", err)
+	}
+	want := filepath.Join(desktop, "分组二.lnk")
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("扫描到的那一份也该被改名，桌面应有「分组二.lnk」: %v", err)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Errorf("旧的「%s」应已改名，不该还留在桌面", old)
+	}
+	if n := countLnk(t, desktop); n != 1 {
+		t.Errorf("桌面应只剩 1 个 .lnk，实际 %d", n)
+	}
+}
+
+// TestRenameDesktopShortcutYieldsToForeignName 改名撞上别的文件时让位，绝不覆盖别人的快捷方式。
+func TestRenameDesktopShortcutYieldsToForeignName(t *testing.T) {
+	desktop := t.TempDir()
+	restore := stubShortcutSeams(t, desktop)
+	defer restore()
+
+	app := newTestApp(t)
+	panel := createTestPanel(t, app, "旧")
+	created, err := app.CreatePanelShortcut(panel.ID)
+	if err != nil {
+		t.Fatalf("CreatePanelShortcut: %v", err)
+	}
+
+	// 桌面上先摆一个**别的分组**的「新.lnk」。
+	foreign := writePanelShortcut(t, desktop, "新.lnk", "99999999-8888-7777-6666-555555555555")
+
+	got, err := renamePanelDesktopShortcut(panel.ID, "新", created.Path)
+	if err != nil {
+		t.Fatalf("renamePanelDesktopShortcut: %v", err)
+	}
+	if want := filepath.Join(desktop, "新 (2).lnk"); got != want {
+		t.Fatalf("撞名应让位到带序号的名字，实际 %q，期望 %q", got, want)
+	}
+	if _, err := os.Stat(foreign); err != nil {
+		t.Errorf("别人的快捷方式不该被动: %v", err)
+	}
+	if target, _, _ := readLnkFacts(t, foreign); filepath.Base(target) != shortcutTestExeName {
+		t.Errorf("别人的快捷方式内容被改了: %q", target)
+	}
+}
+
+// 桌面上摆一份**名字与当前面板名不一致**的旧快捷方式（历史遗留，或用户在资源管理器里改过名），
+// 点「桌面快捷方式」后它应被换成当前面板名，而不是顶着旧名字继续用、也不是再堆一份新的。
+//
+// 这里手写 .lnk 而不是走 CreatePanelShortcut：测试二进制名与 shortcutTestExeName 不同，
+// 自己创建的那份只有靠配置记录的路径才认得出，扫描认不出（见 TestUpdatePanelRenamesDesktopShortcut）。
+func TestCreatePanelShortcutReplacesStaleName(t *testing.T) {
+	desktop := t.TempDir()
+	restore := stubShortcutSeams(t, desktop)
+	defer restore()
+
+	app := newTestApp(t)
+	panel := createTestPanel(t, app, "新名字")
+	stale := writePanelShortcut(t, desktop, "旧名字.lnk", panel.ID)
+
+	got, err := app.CreatePanelShortcut(panel.ID)
+	if err != nil {
+		t.Fatalf("CreatePanelShortcut: %v", err)
+	}
+
+	want := filepath.Join(desktop, "新名字.lnk")
+	if got.Path != want {
+		t.Errorf("快捷方式名应同步为当前面板名，实际 %q", got.Path)
+	}
+	if !got.Renamed {
+		t.Error("旧名字那份被换掉了，Renamed 应为真")
+	}
+	if got.Created {
+		t.Error("桌面上本来就有这个分组的一份，不该算新建")
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("旧的那份应已被替换，不该还留在桌面: %v", err)
+	}
+	if n := countLnk(t, desktop); n != 1 {
+		t.Errorf("桌面应只剩 1 个 .lnk，实际 %d", n)
+	}
+}
+
 // TestCreateDesktopShortcutIntegration 在真实桌面创建快捷方式的集成验证。
 // 默认跳过；设置 PANELDOCK_DESKTOP_TEST=1 启用，验证后自动清理。
 func TestCreateDesktopShortcutIntegration(t *testing.T) {
@@ -327,14 +525,14 @@ func TestCreateDesktopShortcutIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, _, err := createDesktopShortcut(exePath, "pdock-integration-test", "PDock 集成测试/验证", "", "")
+	write, err := createDesktopShortcut(exePath, "pdock-integration-test", "PDock 集成测试/验证", "", "")
 	if err != nil {
 		t.Fatalf("createDesktopShortcut: %v", err)
 	}
-	defer os.Remove(path)
+	defer os.Remove(write.Path)
 
-	if _, err := os.Stat(path); err != nil {
+	if _, err := os.Stat(write.Path); err != nil {
 		t.Fatalf("桌面快捷方式未生成: %v", err)
 	}
-	t.Logf("已创建并清理: %s", path)
+	t.Logf("已创建并清理: %s", write.Path)
 }

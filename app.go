@@ -32,8 +32,124 @@ type App struct {
 	// resident 表示管理窗口被用户「最小化到托盘」藏了起来——即用户明确表达了
 	// 「让程序留在托盘里」的意图。此时最后一个面板关闭也不再自动退出。
 	resident bool
-	// activePanelID 是托盘菜单「活动面板」的提示：最近打开/激活的面板。
+	// activePanelID 是最近打开/激活的面板（托盘菜单不再直接用它，双击托盘在没有
+	// 隐藏窗口时的兜底行为仍依赖它）。
 	activePanelID string
+	// trayHiddenOrder 是「关闭到托盘」的分组队列：托盘右键菜单按下标顺序罗列它们，
+	// **末位 = 最近一次关闭到托盘的那个**，双击托盘图标找的第一个目标就是它。
+	// 只存 ID 不存窗口指针：窗口可能在菜单弹出期间就被销毁了，取用时必须复核它还活着。
+	trayHiddenOrder []string
+	// trayToggleID 是双击托盘**最近一次作用过**的那个面板 ID（可能在桌面上、也可能在托盘里）。
+	// 没有它，第二次双击就会失忆：窗口已经回到桌面、也就不在队列里了，只能对着它发呆。
+	trayToggleID string
+	// trayUsed：用户是否真的在托盘上操作过窗口 —— 轻量模式的让位开关（见 closeSkipsTrayHide）。
+	trayUsed bool
+}
+
+// markTrayToggleTarget 记住本次托盘操作的目标作为下次双击的对象，同时置 trayUsed。
+func (a *App) markTrayToggleTarget(p *panelWindow) {
+	if p == nil {
+		return
+	}
+	a.mu.Lock()
+	a.trayToggleID = p.id
+	a.trayUsed = true
+	a.mu.Unlock()
+}
+
+// trayToggleTarget 返回双击要作用的窗口；目标失效（从未有过 / 已销毁）时返回 nil。
+// a.panels 的清理与 dispose 之间存在一小段窗口期，所以还要按 closed 复核一次。
+func (a *App) trayToggleTarget() *panelWindow {
+	a.mu.Lock()
+	id := a.trayToggleID
+	p := a.panels[id]
+	a.mu.Unlock()
+	if id == "" || p == nil || p.isClosed() {
+		return nil
+	}
+	return p
+}
+
+// trayDropToggleTarget 把面板从双击目标里摘掉（窗口已销毁或被删除）。幂等。
+func (a *App) trayDropToggleTarget(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.trayDropToggleTargetLocked(id)
+}
+
+// trayDropToggleTargetLocked 同上，**调用方必须已持有 a.mu**：App.mu 不可重入，
+// DeletePanel / onPanelClosed 都是持锁区，在那里调加锁版会把自己锁死。
+func (a *App) trayDropToggleTargetLocked(id string) {
+	if a.trayToggleID == id {
+		a.trayToggleID = ""
+	}
+}
+
+// closeSkipsTrayHide 报告本次关闭是否跳过「藏进托盘」这一步、直接关掉窗口。
+// 只看两点：轻量实例处于「用完即走」、且用户没在托盘上操作过窗口（trayUsed）。
+// **刻意不看还剩几个面板**：藏起来的窗口仍占着 App.panels 的位置，只放过最后一个的话，
+// 开着两个面板时第一个就被藏起来，第二个再也轮不上「最后一个」，进程退不出去。
+func (a *App) closeSkipsTrayHide() bool {
+	a.mu.Lock()
+	trayUsed := a.trayUsed
+	a.mu.Unlock()
+	return a.lightweightEphemeral() && !trayUsed
+}
+
+// lightweightEphemeral 报告轻量实例是否仍是「用完即走」（快捷方式直达 + 设置未关）；退出判定与「跳过托盘」共用它。
+func (a *App) lightweightEphemeral() bool {
+	a.mu.Lock()
+	lightweight := a.lightweight
+	settings := a.config.settings()
+	a.mu.Unlock()
+	return lightweight && settings.LightweightQuitOnLastPanel
+}
+
+// noteTrayHidden 把一个刚藏到托盘的分组放到队尾（已在队里就先摘出来再追加，
+// 保证「末位即最近」这条不变量）。
+func (a *App) noteTrayHidden(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.trayHiddenOrder = append(removeFromOrder(a.trayHiddenOrder, id), id)
+}
+
+// forgetTrayHidden 把分组从「关闭到托盘」队列里摘掉（窗口已恢复或已销毁）。幂等。
+func (a *App) forgetTrayHidden(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.trayHiddenOrder = removeFromOrder(a.trayHiddenOrder, id)
+}
+
+// trayHiddenPanels 按「最近关闭到托盘」的顺序返回仍藏在托盘里的分组窗口。
+// 取出时复核两件事：窗口还活着、且 hiddenInTray 仍为真 —— 任意一条不满足都不该出现在菜单里
+// （否则会列出一条点了没反应的死项）。
+func (a *App) trayHiddenPanels() []*panelWindow {
+	a.mu.Lock()
+	ids := append([]string(nil), a.trayHiddenOrder...)
+	a.mu.Unlock()
+
+	out := make([]*panelWindow, 0, len(ids))
+	for _, id := range ids {
+		a.mu.Lock()
+		p := a.panels[id]
+		a.mu.Unlock()
+		if p == nil || !p.isHiddenInTray() {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// removeFromOrder 返回去掉指定 ID 后的副本（原切片不被修改）。
+func removeFromOrder(order []string, id string) []string {
+	out := make([]string, 0, len(order))
+	for _, item := range order {
+		if item != id {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func NewApp(autoOpenID string) *App {
@@ -308,30 +424,32 @@ func (a *App) CreatePanel(name, url string, enabled bool) (PanelConfig, error) {
 	return a.config.create(name, url, enabled)
 }
 
-// UpdatePanel 更新面板配置（名称 / 地址 / 启用状态）。
+// UpdatePanel 更新面板配置（名称 / 地址 / 启用状态）。改名顺带把桌面快捷方式一起改名
+// （见 renamePanelDesktopShortcut）；联动失败不阻断改名本身 —— 快捷方式是附属物。
 func (a *App) UpdatePanel(id, name, url string, enabled bool) (PanelConfig, error) {
-	return a.config.update(id, name, url, enabled)
+	before, _ := a.config.get(id)
+	cfg, err := a.config.update(id, name, url, enabled)
+	if err != nil {
+		return cfg, err
+	}
+	if before.Name != cfg.Name {
+		if path, renameErr := renamePanelDesktopShortcut(cfg.ID, cfg.Name, cfg.Shortcut); renameErr == nil && path != "" {
+			_ = a.config.setShortcut(cfg.ID, path)
+		}
+	}
+	return cfg, nil
 }
 
 // DeletePanel 删除面板配置、关闭其已打开的面板窗口，并清空它的全部浏览器数据。
 //
-// removeShortcuts 是用户在确认对话框里对「同时删除快捷方式」可选项的勾选结果：
-//   - true：联动清理该面板的桌面快捷方式（配置里记录的 + 扫描桌面兜底匹配到的）；
-//   - false：桌面快捷方式原样保留。面板已不存在，留下的 .lnk 双击后会因面板 ID 查不到
-//     而落到「显示管理界面」（main.go → App.ShowMainWindow），不会指向别的面板，
-//     但要由用户自己决定是否留着 —— 所以清理必须是**显式勾选**的结果，不是默认动作。
+// removeShortcuts 是确认对话框里「同时删除快捷方式」的勾选结果 —— 清理必须是**显式**的，
+// 没勾就一个 .lnk 都不动（面板已不存在，留下的 .lnk 双击后落到「显示管理界面」）。
 //
-// **WebView2 profile 无条件清掉**（2026-09-30 用户明确要求）：Cookie、登录态、缓存、
-// 本地存储，以及 WebView2 保存的登录密码。理由是这个分组从此不存在 —— 那些目录只有
-// 它自己的标签 ID 能访问，面板一删就再也读不回来，留着只会白占空间、并且把密码继续留在
-// 盘上。想「只清数据、保留面板」是另一个动作（ResetPanelData），卡片上就有。
+// **profile 无条件清掉**（不看 sessionMode）：面板一删，那些目录只有它自己的标签 ID 能访问，
+// 留着只是白占空间并把密码留在盘上。要「只清数据保留面板」用 ResetPanelData。
 //
-// 顺序是刻意的：**关窗口 → 清数据 → 删快捷方式 → 删配置**。
-//   - 清数据必须在关窗口之后：目录被浏览器进程占着，不关就删不干净（删一半 = 登录态还在）；
-//   - 清数据失败就**整件事中止、返回错误、面板保留** —— 不允许出现「面板没了但数据还在
-//     盘上」这种半完成状态，那正是用户以为已经清干净、实际密码还在的情形；
-//   - 快捷方式清单要在配置删除之前读（listPanelShortcuts 依赖配置里记录的 .lnk 路径），
-//     但排在清数据之后：数据都没清干净，不该先去动用户的桌面。
+// 顺序刻意：**关窗口 → 清数据 → 删快捷方式 → 删配置**。清数据必须在关窗口之后（目录被进程占着），
+// 清数据失败就整件事中止、面板保留（不允许「面板没了数据还在」），清单要在删配置之前读。
 func (a *App) DeletePanel(id string, removeShortcuts bool) error {
 	cfg, ok := a.config.get(id)
 	if !ok {
@@ -346,6 +464,10 @@ func (a *App) DeletePanel(id string, removeShortcuts bool) error {
 	if a.activePanelID == id {
 		a.activePanelID = ""
 	}
+	// 队列在这里一次性摘干净：面板马上要连窗口一起销毁，留着条目会让托盘
+	// 菜单列一条点了没反应的名字。后期针对窗口对象的清理也可能够不着这条路径。
+	a.trayHiddenOrder = removeFromOrder(a.trayHiddenOrder, id)
+	a.trayDropToggleTargetLocked(id)
 	a.mu.Unlock()
 
 	if p != nil {
@@ -388,7 +510,7 @@ func (a *App) ListPanelShortcuts(id string) ([]string, error) {
 // PanelShortcutPreview 是「桌面快捷方式」按钮按下后的预检结果。
 //
 // 只回答现状，不写任何文件：桌面已经摆着这个分组的一份时，前端要先问一句
-// 「是否覆盖它」，用户点头才动手（2026-09-30 用户要求）。
+// 「是否覆盖它」，用户点头才动手。
 type PanelShortcutPreview struct {
 	// Exists 为真表示桌面已经有该分组的快捷方式 —— 继续做就是覆盖它。
 	Exists bool `json:"exists"`
@@ -398,6 +520,9 @@ type PanelShortcutPreview struct {
 	Extra []string `json:"extra"`
 	// IconPath 是已经缓存好的站点图标路径（没缓存过则为空）。非空时覆盖后的快捷方式会用它当图标。
 	IconPath string `json:"iconPath"`
+	// TargetPath 是继续操作会写下的 .lnk 路径（名字同步自当前面板名）：让对话框能在动手前
+	// 说清「会从这一份变成哪一份」—— 写完再告诉用户改了名，那时候木已成舟。
+	TargetPath string `json:"targetPath"`
 }
 
 // InspectPanelShortcut 预检桌面快捷方式的现状，供前端在覆盖前问一句。
@@ -410,6 +535,13 @@ func (a *App) InspectPanelShortcut(id string) (PanelShortcutPreview, error) {
 	preview := PanelShortcutPreview{
 		Shortcuts: found,
 		IconPath:  a.cachedPanelIconPath(cfg.ID),
+	}
+	if desktop, err := shortcutDesktopDirectory(); err == nil {
+		existing := ""
+		if len(found) > 0 {
+			existing = found[0]
+		}
+		preview.TargetPath = shortcutRenameTarget(desktop, cfg.Name, existing)
 	}
 	if len(found) == 0 {
 		return preview, nil
@@ -437,17 +569,17 @@ type PanelShortcutResult struct {
 	Path string `json:"path"`
 	// Created 为真表示这次新建了文件；为假表示覆盖了桌面原有的那一份。
 	Created bool `json:"created"`
+	// Renamed 为真表示覆盖时把那一份的文件名同步成了当前面板名（旧的那份已被替换掉）。
+	Renamed bool `json:"renamed"`
 	// Removed 是顺带收敛掉的、这个分组此前遗留在桌面上的多余快捷方式。
 	Removed []string `json:"removed"`
 }
 
 // CreatePanelShortcut 确保桌面有该面板的快捷方式（`--open <面板ID>` 直达启动）。
 //
-// 桌面已经有这个分组的一份时**覆盖它**，不再新增：一个分组桌面只能有一个
-// （见 createDesktopShortcut）。把用户自己起的文件名保留下来 —— 他可能已经把那份
-// 快捷方式改了名摆在顺手的位置。
-//
-// 面板改名后快捷方式仍有效（ID 不可变）。路径会记入面板配置，删除面板时据此清理。
+// 桌面已有这个分组的一份时**覆盖它**（一个分组只留一份），并把文件名同步到当前面板名；
+// 要动哪一份、动不动，由前端先拿 InspectPanelShortcut 问过用户（见 docs/behavior.md）。
+// 路径会记入面板配置，删除面板时据此清理。
 func (a *App) CreatePanelShortcut(id string) (PanelShortcutResult, error) {
 	cfg, ok := a.config.get(id)
 	if !ok {
@@ -457,14 +589,14 @@ func (a *App) CreatePanelShortcut(id string) (PanelShortcutResult, error) {
 	if err != nil {
 		return PanelShortcutResult{}, errCodeWrap(errExecPathFailed, err)
 	}
-	path, created, err := createDesktopShortcut(exePath, cfg.ID, cfg.Name, a.cachedPanelIconPath(cfg.ID), cfg.Shortcut)
+	write, err := createDesktopShortcut(exePath, cfg.ID, cfg.Name, a.cachedPanelIconPath(cfg.ID), cfg.Shortcut)
 	if err != nil {
 		return PanelShortcutResult{}, err
 	}
 	// 顺手收敛：桌面万一还留着这个分组从前的多份快捷方式，只留刚写的那一份。
-	removed := a.collapseExtraShortcuts(cfg, path)
-	_ = a.config.setShortcut(cfg.ID, path)
-	return PanelShortcutResult{Path: path, Created: created, Removed: removed}, nil
+	removed := a.collapseExtraShortcuts(cfg, write.Path)
+	_ = a.config.setShortcut(cfg.ID, write.Path)
+	return PanelShortcutResult{Path: write.Path, Created: write.Created, Renamed: write.Renamed, Removed: removed}, nil
 }
 
 // collapseExtraShortcuts 收掉桌面上该分组多余的快捷方式（一个分组只留一份）。
@@ -488,18 +620,11 @@ type PinTaskbarResult struct {
 	AlreadyPinned bool `json:"alreadyPinned"`
 }
 
-// PinPanelToTaskbar 为「固定到任务栏」做好准备。
+// PinPanelToTaskbar 为「固定到任务栏」做好准备：确保 .lnk 存在，并回读固定目录判断是否已固定。
+// 剩下两下必须用户自己点 —— Windows 不允许程序自己固定，见 docs/behavior.md#固定到任务栏。
 //
-// 实现分两步（为什么不能一步到位，见 taskbar_windows.go）：
-//  1. 没有现成的 .lnk 就先建一个 —— 任务栏固定的本质就是这个 .lnk 被复制进固定目录；
-//  2. 回读固定目录，已经在任务栏上了就直接返回 AlreadyPinned。
-//
-// 刻意**不尝试**调用 shell 的 `taskbarpin` 动词：实测它在 Windows 11 上不报错，
-// 而是退化成 `open` 把面板真的打开一次，副作用大于收益。
-//
-// 也刻意**不在这里打开资源管理器**（2026-09-30 调整）：那是用户还来不及读说明就被程序
-// 抢走的动作，属于「擅作主张」。选中快捷方式改由用户读完引导后自己点「选中快捷方式」触发
-// （App.RevealPanelShortcut），什么时候切过去由用户决定。
+// 刻意**不**调 shell 的 `taskbarpin` 动词（它静默退化成 open，会把面板真的打开一次），
+// 也刻意**不**在这里打开资源管理器（抢走前台会盖掉用户还没读完的说明）。
 func (a *App) PinPanelToTaskbar(id string) (PinTaskbarResult, error) {
 	cfg, ok := a.config.get(id)
 	if !ok {
@@ -705,18 +830,6 @@ func (a *App) restartPanel(panelID string) {
 	}()
 }
 
-// ClosePanel 关闭指定面板窗口（保留配置与 profile）。
-func (a *App) ClosePanel(id string) error {
-	a.mu.Lock()
-	p := a.panels[id]
-	a.mu.Unlock()
-	if p == nil {
-		return nil
-	}
-	p.close()
-	return nil
-}
-
 // SetPanelAlwaysOnTop 切换指定面板的置顶状态（持久化 + 应用到已打开窗口）。
 func (a *App) SetPanelAlwaysOnTop(id string, on bool) error {
 	if err := a.config.setAlwaysOnTop(id, on); err != nil {
@@ -810,7 +923,7 @@ func (a *App) ResetPanelData(id string) error {
 
 // ListOrphanProfiles 扫描 WebViewProfiles 根目录，返回不属于任何标签的子目录名。
 //
-// 孤儿的来源：早期版本删标签/删分组只改配置不删目录（2026-09-30 已改为连带清理），
+// 孤儿的来源：早期版本删标签/删分组只改配置不删目录，
 // 那之前留下的目录从此没有任何配置项指向它们 —— 占着磁盘，里面可能还存着密码，
 // 而且用户没有入口发现它们。目录名就是 tabID，对用户没意义，只报个数和用途说明。
 func (a *App) ListOrphanProfiles() ([]string, error) {
@@ -1210,6 +1323,8 @@ func (a *App) onPanelClosed(id string, p *panelWindow) {
 	a.mu.Lock()
 	delete(a.panels, id)
 	ctx := a.ctx
+	a.trayHiddenOrder = removeFromOrder(a.trayHiddenOrder, id)
+	a.trayDropToggleTargetLocked(id)
 	a.mu.Unlock()
 
 	// 写配置前最后过一道校验：坏值（最小化的哨兵矩形、退化成零头的尺寸）一旦落盘就是
@@ -1250,12 +1365,11 @@ func (a *App) shouldQuitAfterPanelClosed() bool {
 func (a *App) quitWhenNoWindows(remainingPanels int) bool {
 	a.mu.Lock()
 	stopping := a.quitting
-	lightweight := a.lightweight
 	resident := a.resident
 	managerShown := a.mainShown
 	settings := a.config.settings()
 	a.mu.Unlock()
-	ephemeral := lightweight && settings.LightweightQuitOnLastPanel
+	ephemeral := a.lightweightEphemeral() // 与 closeSkipsTrayHide 同源，共用一条判定
 
 	if stopping {
 		return false // 正在主动退出：由 Wails 的 OnShutdown 统一收尾，不再补刀

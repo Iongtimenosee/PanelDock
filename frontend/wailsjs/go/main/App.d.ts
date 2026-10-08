@@ -10,8 +10,6 @@ export function ApplyWindowTheme(arg1:string):Promise<void>;
 
 export function CleanOrphanProfiles():Promise<number>;
 
-export function ClosePanel(arg1:string):Promise<void>;
-
 export function CreatePanel(arg1:string,arg2:string,arg3:boolean):Promise<main.PanelConfig>;
 
 export function CreatePanelShortcut(arg1:string):Promise<main.PanelShortcutResult>;

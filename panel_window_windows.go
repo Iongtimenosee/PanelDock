@@ -632,13 +632,15 @@ func newPanelWindow(app *App, cfg PanelConfig) (*panelWindow, error) {
 }
 
 // panelWindowTitle 由面板名生成窗口标题；空名回退为应用名。
-// 标题形如 "PanelDock · 面板名"，与 Wails 管理窗口标题（appMainWindowTitle）不冲突：
-// 关闭询问框靠标题精确定位管理窗口，端到端测试也靠标题区分同时打开的多个面板。
+// 标题形如 "面板名 · PanelDock"：**面板名在前**——任务栏按钮、Alt+Tab、任务管理器的应用列表
+// 都是从左往右截断显示的，把面板名放前面才能在窄空间里第一眼认出是哪个面板。
+// 与 Wails 管理窗口标题（appMainWindowTitle）不冲突：关闭询问框靠标题精确查找（FindWindowW
+// 是整串相等比较），端到端测试也靠标题区分同时打开的多个面板。
 func panelWindowTitle(name string) string {
 	if name == "" {
 		return appMainWindowTitle
 	}
-	return appMainWindowTitle + " · " + name
+	return name + " · " + appMainWindowTitle
 }
 
 func (p *panelWindow) windowTitle() string {
@@ -906,6 +908,17 @@ func (p *panelWindow) fail(err error) {
 	panelDestroyWindow.Call(hwnd)
 }
 
+// destroyPanelWindow 销毁面板窗口，并在销毁**之前**记下最后一次窗口位置。
+//
+// 顺序不能反：DestroyWindow 同步触发 WM_DESTROY → dispose，那时已读不到矩形
+//（这段逻辑一度写在 dispose 里，因此常年是死代码）。最小化由 captureBounds 跳过。
+func destroyPanelWindow(panel *panelWindow, hwnd uintptr) {
+	if panel != nil {
+		panel.recordBounds()
+	}
+	panelDestroyWindow.Call(hwnd)
+}
+
 // recordBounds 记录窗口当前屏幕矩形（含非客户区），用于持久化窗口状态。
 func (p *panelWindow) recordBounds() {
 	p.mu.Lock()
@@ -929,7 +942,7 @@ func (p *panelWindow) recordBounds() {
 // **最小化的窗口必须跳过**：此时 GetWindowRect 返回的是 Windows 的哨兵值
 // (-32000,-32000,160,28)（「图标位置」，标题栏最小化按钮走的正是 SW_MINIMIZE），
 // 存进配置就变成「下次打开这个面板缩成一个小方块、还落在屏幕外」。
-// 2026-09-30 在用户便携配置里实测到过：面板最小化后从托盘关闭，配置里记下了
+// 实测到过：面板最小化后从托盘关闭，配置里记下了
 // x=-32000 / 160x28。最小化期间保留上一次的正常矩形即可 —— 用户还原窗口时会再记一次。
 func (p *panelWindow) captureBounds(hwnd uintptr) (panelRECT, bool) {
 	if iconic, _, _ := panelIsIconic.Call(hwnd); iconic != 0 {
@@ -1072,8 +1085,22 @@ func (p *panelWindow) setHiddenInTray(on bool) {
 	changed := p.hiddenInTray != on
 	p.hiddenInTray = on
 	p.mu.Unlock()
-	if changed && p.app != nil {
-		p.app.syncTray()
+
+	if p.app != nil {
+		// 托盘菜单的「已隐藏的窗口」队列跟着同一笔状态走：藏起来 → 进队尾（于是它就是
+		//「最近一次关闭到托盘」的那个，双击托盘恢复的正是它）；恢复 → 出队。
+		// 少同步任何一边，菜单里就会出现点了没反应的幻影项。
+		switch {
+		case on:
+			// 重复隐藏也要重新入队尾：「最近一次」说的是最近那次动作，
+			// 不是首次藏起来的时刻（changed 为 false 时同样要刷新顺序）。
+			p.app.noteTrayHidden(p.id)
+		case changed:
+			p.app.forgetTrayHidden(p.id)
+		}
+		if changed {
+			p.app.syncTray()
+		}
 	}
 }
 
@@ -1093,22 +1120,21 @@ func (p *panelWindow) isAlwaysOnTop() bool {
 
 // hideToTray 把窗口隐藏到系统托盘（最小化到托盘 / 关闭询问选「最小化到托盘」时使用）。
 // 隐藏前标记 hiddenInTray，确保托盘图标不会随之消失。
+//
+// 标记排在 ShowWindow 之前、也排在 hwnd 判断之外：状态与 Win32 调用解耦后，句柄为零时
+// （窗口尚在创建、或单测里的替身对象）这笔状态照样成立，不会整个被吞掉。
 func (p *panelWindow) hideToTray() {
-	hwnd := p.windowHandle()
-	if hwnd == 0 {
-		return
-	}
 	p.setHiddenInTray(true)
-	panelShowWindow.Call(hwnd, win32SWHide)
+	if hwnd := p.windowHandle(); hwnd != 0 {
+		panelShowWindow.Call(hwnd, win32SWHide)
+	}
 }
 
-// toggleVisibleFromTray 在托盘菜单里切换本窗口的显示/隐藏。
-func (p *panelWindow) toggleVisibleFromTray() {
-	if p.isVisible() {
-		p.hideToTray()
-		return
-	}
-	p.showFromTray()
+// isClosed 报告窗口是否已经开始销毁（销毁完成后 App.panels 里也不会再有它）。
+func (p *panelWindow) isClosed() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.closed
 }
 
 // windowHandle 返回面板窗口句柄（0 表示窗口尚未创建或已销毁）。
@@ -1129,7 +1155,12 @@ func (p *panelWindow) handleInteractiveClose() {
 	decision := p.app.decideClose(p.windowHandle(), p.closePromptNote())
 	switch decision.Action {
 	case CloseActionTray:
+		// 记住的选择照原样落盘（那是用户跨会话的全局意图），本次只是不执行它。
 		p.app.commitCloseChoice(decision)
+		if p.app.closeSkipsTrayHide() {
+			p.close()
+			return
+		}
 		p.hideToTray()
 	case CloseActionClose:
 		p.app.commitCloseChoice(decision)
@@ -1510,13 +1541,16 @@ func (p *panelWindow) controllerCompleted(tabID string, errorCode uintptr, contr
 
 // showFromTray 从托盘恢复窗口显示，并解除「藏在托盘里」的标记
 // （面板窗口自身不再注册托盘图标，图标统一由 tray_windows.go 管理）。
+//
+// 它同时是托盘菜单里「已隐藏的窗口」项的实现：setHiddenInTray(false) 顺带把本窗口
+// 从托盘菜单队列里摘掉 —— 用户看到的正是「点一次名字，窗口回来，菜单里那条消失」。
+// 之后要再把它藏回托盘，双击托盘图标即可（它已成双击的目标），菜单里重新出现。
 func (p *panelWindow) showFromTray() {
+	p.setHiddenInTray(false)
 	hwnd := p.windowHandle()
 	if hwnd == 0 {
 		return
 	}
-
-	p.setHiddenInTray(false)
 	panelShowWindow.Call(hwnd, win32SWRestore)
 	panelSetForegroundWindow.Call(hwnd)
 }
@@ -1534,15 +1568,7 @@ func (p *panelWindow) dispose() {
 	hwnd := p.hwnd
 	p.mu.Unlock()
 
-	// 销毁前记录最后一次窗口位置。最小化的窗口跳过（见 captureBounds）：
-	// 从托盘关掉一个最小化的面板是最常见的路径，正是它把 -32000/160x28 写进过配置。
-	if hwnd != 0 {
-		if rect, ok := p.captureBounds(hwnd); ok {
-			p.mu.Lock()
-			p.lastRect = rect
-			p.mu.Unlock()
-		}
-	}
+	// 窗口位置不在这里记录 —— 见 destroyPanelWindow：WM_DESTROY 时已读不到矩形。
 
 	// 清理所有标签的 COM 资源。
 	p.mu.Lock()
@@ -2315,10 +2341,10 @@ func panelWindowProc(hwnd uintptr, message uint32, wParam, lParam uintptr) uintp
 			panel.handleInteractiveClose()
 			return 0
 		}
-		panelDestroyWindow.Call(hwnd)
+		destroyPanelWindow(panel, hwnd)
 		return 0
 	case win32WMDirectClose:
-		panelDestroyWindow.Call(hwnd)
+		destroyPanelWindow(panel, hwnd)
 		return 0
 	case win32WMIconsReady:
 		// 图标在后台线程解析完了，回这里安装（WM_SETICON 只能在窗口线程发）。

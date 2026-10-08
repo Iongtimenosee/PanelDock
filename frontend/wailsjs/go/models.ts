@@ -177,6 +177,7 @@ export namespace main {
 	    shortcuts: string[];
 	    extra: string[];
 	    iconPath: string;
+	    targetPath: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PanelShortcutPreview(source);
@@ -188,11 +189,13 @@ export namespace main {
 	        this.shortcuts = source["shortcuts"];
 	        this.extra = source["extra"];
 	        this.iconPath = source["iconPath"];
+	        this.targetPath = source["targetPath"];
 	    }
 	}
 	export class PanelShortcutResult {
 	    path: string;
 	    created: boolean;
+	    renamed: boolean;
 	    removed: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -203,6 +206,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
 	        this.created = source["created"];
+	        this.renamed = source["renamed"];
 	        this.removed = source["removed"];
 	    }
 	}

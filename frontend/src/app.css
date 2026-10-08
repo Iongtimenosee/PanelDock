@@ -801,6 +801,12 @@
   background: var(--surface-subtle);
 }
 
+/* display:grid 会盖掉浏览器给 [hidden] 的 display:none，整块要能真正藏起来必须自己写一条
+   （.shortcut-list 同理，见下）。用它来收起「这次不会出现」的说明块。 */
+.confirm-option[hidden] {
+  display: none;
+}
+
 .confirm-option .check-line {
   color: var(--text-secondary-strong);
   font-weight: 600;

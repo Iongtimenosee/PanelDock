@@ -526,7 +526,7 @@ type PanelIconPreview struct {
 	// WillCreateShortcut 为真表示本次会顺手在桌面新建一个快捷方式。
 	//
 	// 没有它的话，「刷新图标」在桌面没快捷方式时就只是一次静悄悄的文件下载 ——
-	// 用户点完什么也看不到（2026-09-30 用户原话：「这没啥意义」）。
+	// 用户点完什么也看不到。
 	WillCreateShortcut bool `json:"willCreateShortcut"`
 	// Duplicates 是桌面上该分组多余的快捷方式，本次会收敛掉（一个分组只留一份）。
 	Duplicates []string `json:"duplicates"`
@@ -683,7 +683,7 @@ func (a *App) InspectPanelIcon(id string) (PanelIconPreview, error) {
 // 不留「快捷方式指着一个不存在的图标」这种状态。
 //
 // 桌面那份没有就新建：不然桌面没快捷方式时，这个按钮点完只是把 .ico 悄悄存进文件夹，
-// 用户看不到任何变化（2026-09-30 用户原话：「这没啥意义」）。有就覆盖它，不再新增副本。
+// 用户看不到任何变化。有就覆盖它，不再新增副本。
 func (a *App) ApplyPanelIcon(id string) (PanelIconApplyResult, error) {
 	cfg, ok := a.config.get(id)
 	if !ok {
@@ -704,20 +704,32 @@ func (a *App) ApplyPanelIcon(id string) (PanelIconApplyResult, error) {
 
 	result := PanelIconApplyResult{IconPath: iconPath}
 
-	// 桌面那份：没有就创建，有就覆盖。走的是同一个 createDesktopShortcut ——
-	// 它负责复用桌面已有的那一份（连用户改过的文件名一起留着），不再堆「名字 (2).lnk」。
-	exePath, exeErr := os.Executable()
-	if exeErr != nil {
+	// 桌面那份：没有就创建一份；已经有了就**只改图标，不动文件名**。
+	//
+	// 为什么已有时不走 createDesktopShortcut（它会把名字同步成当前面板名）：「刷新图标」是用户
+	// 点名要做的那件事，顺手把文件名也改掉属于没人要求的副作用。名字同步只发生在
+	// 「桌面快捷方式」按钮与面板改名这两条路径上（见 docs/behavior.md#桌面快捷方式）。
+	desktop := listPanelShortcuts(cfg.ID, cfg.Shortcut)
+	if len(desktop) > 0 {
+		lnk := desktop[0]
+		if err := setShortcutIcon(lnk, iconPath); err != nil {
+			result.Failed = append(result.Failed, fmt.Sprintf("桌面快捷方式（%v）", err))
+		} else {
+			result.Updated = append(result.Updated, lnk)
+			_ = a.config.setShortcut(cfg.ID, lnk)
+			// 顺手收敛：桌面还留着这个分组从前的多份时，只留刚改的这一份。
+			result.Removed = a.collapseExtraShortcuts(cfg, lnk)
+		}
+	} else if exePath, exeErr := os.Executable(); exeErr != nil {
 		result.Failed = append(result.Failed, fmt.Sprintf("桌面快捷方式（获取程序路径失败: %v）", exeErr))
-	} else if lnk, created, err := createDesktopShortcut(exePath, cfg.ID, cfg.Name, iconPath, cfg.Shortcut); err != nil {
+	} else if write, err := createDesktopShortcut(exePath, cfg.ID, cfg.Name, iconPath, cfg.Shortcut); err != nil {
 		// 图标已经落盘了，如实说清楚：图标存下了，但桌面快捷方式没弄成。
 		result.Failed = append(result.Failed, fmt.Sprintf("桌面快捷方式（%v）", err))
 	} else {
-		result.Updated = append(result.Updated, lnk)
-		result.CreatedShortcut = created
-		_ = a.config.setShortcut(cfg.ID, lnk)
-		// 顺手收敛：桌面还留着这个分组从前的多份时，只留刚写的那一份。
-		result.Removed = a.collapseExtraShortcuts(cfg, lnk)
+		result.Updated = append(result.Updated, write.Path)
+		result.CreatedShortcut = write.Created
+		_ = a.config.setShortcut(cfg.ID, write.Path)
+		result.Removed = a.collapseExtraShortcuts(cfg, write.Path)
 	}
 
 	// 任务栏固定项：用户自己固定上去的那些，逐个改图标。桌面那份上面已经处理过。

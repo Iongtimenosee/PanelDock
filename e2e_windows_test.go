@@ -53,6 +53,12 @@ const (
 )
 
 const (
+	// SetWindowPos 的标志位：只挪位置尺寸，不动 Z 序、不抢前台。
+	win32SWPNoZOrderForE2E   = 0x0004
+	win32SWPNoActivateForE2E = 0x0010
+)
+
+const (
 	// 复选框状态操作：BM_SETCHECK 把「记住我的选择」置为指定状态，
 	// 比 BM_CLICK 更确定（不看当前状态）。BST_CHECKED 与生产代码同源。
 	win32BMSetCheck   = 0x00F1
@@ -75,6 +81,7 @@ var (
 	e2eGetWindowThreadProcessId = e2eUser32.NewProc("GetWindowThreadProcessId")
 	e2eIsWindowVisible          = e2eUser32.NewProc("IsWindowVisible")
 	e2eShowWindowW              = e2eUser32.NewProc("ShowWindow")
+	e2eSetWindowPos             = e2eUser32.NewProc("SetWindowPos")
 	e2eIsIconic                 = e2eUser32.NewProc("IsIconic")
 	e2ePostMessageW             = e2eUser32.NewProc("PostMessageW")
 	e2eSendMessageW             = e2eUser32.NewProc("SendMessageW")
@@ -282,13 +289,13 @@ func TestE2ELightweightSingleInstanceAndQuit(t *testing.T) {
 // 面板窗口的「直接关闭」只关掉该面板，不再连带关闭其他面板与管理面板。
 //
 // 用两个面板窗口（同一个实例被 `--open` 打开两次）验证：关掉第一个后，第二个窗口
-// 与进程都必须还在；关掉最后一个时才收工（轻量模式「用完即走」，见 AGENTS.md）。
+// 与进程都必须还在；关掉最后一个时才收工（轻量模式「用完即走」，见 docs/architecture.md#进程寿命）。
 func TestE2EClosePromptPanelOnlyAffectsItself(t *testing.T) {
 	exePath, _ := e2eSkipUnlessReady(t)
 
 	// 前置（两个**可打开**的面板）由用例自己建立，绝不因为「只有一个启用面板」而 t.Skip：
 	// 「关闭只影响本面板」是本项目最核心的不变量，一旦静默跳过就等于没人守它。
-	// 便携配置里随时可能只剩一个启用面板（用户停用另一个，2026-09-30 实测就是这样）。
+	// 便携配置里随时可能只剩一个启用面板（用户停用另一个，实测就是这样）。
 	cfg := e2eReadConfig(t)
 	if len(cfg.Panels) < 2 {
 		t.Skip("便携配置只有一个面板，无法验证「关闭只影响本面板」")
@@ -1241,7 +1248,7 @@ const (
 //
 // 为什么非得自带尺寸：这条用例是拿窗口宽度去核对地址栏几何的（地址栏占标题栏中段，
 // 窗口太窄时宽度合法地算成 0）。拿用户配置里的面板做样本，就等于把用户那一条窗口状态
-// 变成用例的输入 —— 2026-09-30 实测踩到：那个面板的窗口状态被历史脏数据写成了
+// 变成用例的输入 —— 实测踩到：那个面板的窗口状态被历史脏数据写成了
 // x=-32000 / 160x28（最小化时存下的哨兵值），用例报「地址栏 EDIT 尺寸异常 0x26」，
 // 看着像产品坏了，其实是被别人的数据坑了。
 func e2eAddFramelessPanel(t *testing.T) func() {
@@ -1327,7 +1334,7 @@ func TestE2EPanelWindowIsFramelessWithCustomTitleBar(t *testing.T) {
 	}
 	// 地址栏宽度是标题栏**按窗口宽度**算出来的（layoutAddressEdit），窗口还没成型时算出来就是 0。
 	// 控件先于布局存在，所以「按类名找到它」不等于「它已经就位」—— 直接断言等于赌布局已跑完
-	// （2026-09-30 实测：整机负载高时挂在这一条，报 0x38）。这里等它就位再断言。
+	// （实测：整机负载高时挂在这一条，报 0x38）。这里等它就位再断言。
 	var editRect e2eRect
 	if !waitForCondition(8*time.Second, func() bool {
 		if ok, _, _ := e2eGetWindowRect.Call(editHwnd, uintptr(unsafe.Pointer(&editRect))); ok == 0 {
@@ -1607,7 +1614,7 @@ const (
 
 // TestE2EDirtyWindowStateFallsBackToDefault 守住「配置里的窗口状态不可信就退回默认尺寸」。
 //
-// 对应的是**存量脏数据**（不是将来）：2026-09-30 在用户便携配置里就有一条 x=-32000 / 160x28
+// 对应的是**存量脏数据**（不是将来）：用户便携配置里就有一条 x=-32000 / 160x28
 // —— 最小化时被写下的哨兵矩形。照着它打开面板，面板就是一个 160x28 的小方块、还落在屏幕外，
 // 用户看到的现象是「点打开没反应」。
 //
@@ -1640,23 +1647,96 @@ func TestE2EDirtyWindowStateFallsBackToDefault(t *testing.T) {
 	}
 }
 
-// TestE2EMinimizedPanelKeepsLastWindowState 守住「最小化后关闭，不把窗口状态写坏」。
+// e2eMovedRect 是两条「窗口状态持久化」用例共用的观测点：与配置 patch 的初始值
+// (240,180 / 1120x760) 明显不同，断言才有分辨力。
+const (
+	e2eMovedX = 120
+	e2eMovedY = 100
+	e2eMovedW = 960
+	e2eMovedH = 640
+)
+
+// e2eMovePanelWindow 把面板窗口挪到 e2eMovedRect，并等位置真的生效。
 //
-// 这是 2026-09-30 在用户便携配置里逮到的真实事故：面板最小化 → 从托盘关闭面板 →
-// `dispose` 里那次记录读到的 `GetWindowRect` 是 Windows 的哨兵矩形
-// (-32000,-32000,160,28)（「图标位置」），于是配置里存下 x=-32000 / 160x28，
-// 下次打开那个面板缩成一个小方块、还落在屏幕外。
+// 刻意**不**补发 WM_EXITSIZEMOVE（人工拖动结束才有的那条消息）：那条路径也会记录位置，
+// 一旦走它，记录就不只依赖「关闭前那一次」，撤掉修复照样绿 —— 用例又变回恒真。
+func e2eMovePanelWindow(t *testing.T, hwnd uintptr) {
+	t.Helper()
+
+	if r, _, _ := e2eSetWindowPos.Call(hwnd, 0, e2eMovedX, e2eMovedY, e2eMovedW, e2eMovedH,
+		win32SWPNoZOrderForE2E|win32SWPNoActivateForE2E); r == 0 {
+		t.Fatal("移动面板窗口失败")
+	}
+	if !waitForCondition(5*time.Second, func() bool {
+		var moved e2eRect
+		e2eGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&moved)))
+		return moved.Left == e2eMovedX && moved.Top == e2eMovedY &&
+			moved.Width() == e2eMovedW && moved.Height() == e2eMovedH
+	}) {
+		t.Fatalf("移动面板窗口后位置不是 %d,%d / %dx%d，观测点不成立",
+			e2eMovedX, e2eMovedY, e2eMovedW, e2eMovedH)
+	}
+}
+
+// e2ePanelWindowState 读配置里某个面板的窗口状态（找不到直接 Fatal：那是 patch 被覆盖了）。
+func e2ePanelWindowState(t *testing.T, panelID string) PanelWindowState {
+	t.Helper()
+
+	cfg := e2eReadConfig(t)
+	for i := range cfg.Panels {
+		if cfg.Panels[i].ID == panelID {
+			return cfg.Panels[i].Window
+		}
+	}
+	t.Fatalf("配置里找不到面板 %s（用例的 patch 被别人覆盖了？）", panelID)
+	return PanelWindowState{}
+}
+
+// TestE2ECloseRemembersLastWindowPosition 守住「关闭面板时最后的位置真的落进配置」。
 //
-// 断言读的是**配置里的值**：修复的全部意义就是「别写坏配置」，中间状态都不算数。
-// 也正因为要看配置，必须等进程真的把配置写完（`waitForNoInstance`）再读。
+// 反向验证：撤掉 `destroyPanelWindow` 里销毁前的 `recordBounds` 即红 ——
+// 那时配置停在 patch 的旧值 240,180 / 1120x760。
 //
-// **诚实说明：这条用例目前无法反向验证。** 把 `captureBounds` 的两道检查全撤掉它照样通过 ——
-// 实测下来这条路径本来就写不坏：`dispose` 跑到记录那一步时窗口已销毁，`GetWindowRect` 失败，
-// `lastRect` 保持构造值。也就是说，用户配置里那个 -32000 不是从这条路径来的（更可能是
-// `recordBounds` 那条，它只在人工拖动窗口时触发，自动化做不出来）。
-// 留下它的理由：它把「最小化 → 关闭」这条真实用户路径的现状钉住，将来谁改了 dispose 的
-// 时序、让记录重新读到哨兵矩形，它会立刻变红。真正可反向验证的是下面那条
-// `TestE2EDirtyWindowStateFallsBackToDefault`（撤掉 `initialWindowRect` 的校验就红）。
+// 这条路径曾经**整段是死代码**：记录写在 `dispose` 里，而 `dispose` 跑在 WM_DESTROY 中，
+// 窗口已读不到矩形，`lastRect` 永远保持构造值 —— 编译、vet、单测、E2E 全绿，却从未执行过。
+func TestE2ECloseRemembersLastWindowPosition(t *testing.T) {
+	exePath, _ := e2eSkipUnlessReady(t)
+
+	restorePanel := e2eAddMinimizePanel(t)
+	defer restorePanel()
+
+	restore := e2eForceLightweightQuit(t)
+	defer restore()
+
+	instance := startE2EInstance(t, exePath, "--open", e2eMinimizePanelID)
+	defer func() { _ = instance.Process.Kill() }()
+
+	panelHwnd := waitForPanelWindow(t)
+	e2eMovePanelWindow(t, panelHwnd)
+
+	// 主动关闭 —— 等价于托盘菜单「关闭面板」。
+	if r, _, _ := e2ePostMessageW.Call(panelHwnd, win32WMDirectClose, 0, 0); r == 0 {
+		t.Fatal("发送直接关闭消息失败")
+	}
+	waitForNoInstance(t)
+
+	got := e2ePanelWindowState(t, e2eMinimizePanelID)
+	if got.X != e2eMovedX || got.Y != e2eMovedY || got.Width != e2eMovedW || got.Height != e2eMovedH {
+		t.Errorf("关闭面板应记下最后位置 %d,%d / %dx%d，配置里却是 %+v",
+			e2eMovedX, e2eMovedY, e2eMovedW, e2eMovedH, got)
+	}
+}
+
+// TestE2EMinimizedPanelKeepsLastWindowState 守住「最小化后关闭，不会把哨兵矩形写进配置」。
+//
+// 真实事故：面板最小化 → 从托盘关闭 → 记录到的 GetWindowRect 是 Windows 的哨兵矩形
+// (-32000,-32000,160,28)（「图标位置」），配置里于是存下 x=-32000 / 160x28，
+// 下次打开缩成一个小方块、还落在屏幕外。
+//
+// ⚠️ **这条是现状钉子，单点不可反向验证**：最小化时 `captureBounds` 直接跳过记录，
+// 所以配置里留的是上一次正常位置。要让它变红，得同时撤掉三道防线
+//（`IsIconic` + `plausibleWindowRect` + `plausibleWindowState`）中的全部 —— 撤任一道
+// 都会被下一道兜住。守住那两道判据本身的是 `window_state_test.go` 里的纯函数单测。
 func TestE2EMinimizedPanelKeepsLastWindowState(t *testing.T) {
 	exePath, _ := e2eSkipUnlessReady(t)
 
@@ -1670,12 +1750,12 @@ func TestE2EMinimizedPanelKeepsLastWindowState(t *testing.T) {
 	defer func() { _ = instance.Process.Kill() }()
 
 	panelHwnd := waitForPanelWindow(t)
+	e2eMovePanelWindow(t, panelHwnd)
 
 	// 真的最小化（标题栏最小化按钮走的就是 SW_MINIMIZE）。
 	//
 	// 先确认「最小化会让 GetWindowRect 变成哨兵矩形」这个前提真的成立 —— 它正是事故的输入，
-	// 也是这条用例的全部意义。不验这一步的话，用例可能因为「窗口已销毁导致记录失败」而
-	// 恒绿（第一版就是这样：撤掉修复它照样通过）。
+	// 也是这条用例的全部意义。不验这一步的话，用例可能因为「窗口已销毁导致记录失败」而恒绿。
 	e2eShowWindowW.Call(panelHwnd, win32SWMinimizeForE2E)
 	var rect e2eRect
 	sentinel := waitForCondition(5*time.Second, func() bool {
@@ -1697,18 +1777,11 @@ func TestE2EMinimizedPanelKeepsLastWindowState(t *testing.T) {
 	}
 	waitForNoInstance(t)
 
-	cfg := e2eReadConfig(t)
-	var got *PanelWindowState
-	for i := range cfg.Panels {
-		if cfg.Panels[i].ID == e2eMinimizePanelID {
-			got = &cfg.Panels[i].Window
-		}
-	}
-	if got == nil {
-		t.Fatal("配置里找不到该面板（用例的 patch 被别人覆盖了？）")
-	}
-	if got.Width != 1120 || got.Height != 760 || got.X != 240 || got.Y != 180 {
-		t.Errorf("最小化后再关闭不该改写窗口状态：期望 240,180 / 1120x760，配置里却是 %+v", *got)
+	// 期望值 = 移动前那次「上一次正常位置」，也就是用例 patch 的初始值：
+	// 最小化期间不记录，是刻意的行为（见 captureBounds）。
+	got := e2ePanelWindowState(t, e2eMinimizePanelID)
+	if got.X != 240 || got.Y != 180 || got.Width != 1120 || got.Height != 760 {
+		t.Errorf("最小化后关闭不该改写窗口状态：期望保留 240,180 / 1120x760，配置里却是 %+v", got)
 	}
 }
 
@@ -1762,7 +1835,7 @@ func e2eWindowText(hwnd uintptr) string {
 // TestE2ETitlebarFollowsRealNavigation 验证自绘标题栏**真的接到了 WebView2 的导航事件**。
 //
 // 为什么必须单独有这条用例 —— 骨架用例 `TestE2EPanelWindowIsFramelessWithCustomTitleBar`
-// **抓不到 2026-09-30 那次事故**：手工 `ICoreWebView2` vtable 漏了 `NavigateToString`（槽位 6），
+// **抓不到这类事故**：手工 `ICoreWebView2` vtable 漏了 `NavigateToString`（槽位 6），
 // 其后所有槽位整体错位一格，`add_*` 统统落到隔壁的 `remove_*` 上——**返回 S_OK、token 也写出来了，
 // 但回调永不触发**；`ExecuteScript` 则落到 `RemoveScriptToExecuteOnDocumentCreated` 上，
 // 脚本根本没执行。结果是地址栏不刷新、favicon 永远是兜底地球字形，而**编译 / go vet /

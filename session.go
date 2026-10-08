@@ -11,18 +11,11 @@ import (
 //
 // 为什么是**整个目录**而不是挑几个文件删：profile 目录（WebViewProfiles\<tabID>）就是
 // 这个标签的浏览器身份本身 —— Cookie、Local Storage、IndexedDB、Service Worker、缓存、
-// 权限授权记录全在里面，且目录结构随 WebView2 版本变化。逐类清理既会漏（漏掉一样就等于
-// 登录态还在），又要跟着上游改。删目录是唯一可靠、且语义明确的实现。
+// 权限授权全在里面，且目录结构随 WebView2 版本变。逐类清理既会漏（漏一样就等于登录态还在），
+// 又要跟着上游改。
 //
-// 覆盖的场景（详见 AGENTS.md「会话状态」一节）：
-//   - 关闭面板后清空（panelWindow.dispose，仅「关闭后清空」的面板）；
-//   - 打开面板前兜底清空（preparePanelProfile）——上一次若因崩溃/强杀没清干净，这里补上；
-//   - 删除面板时无条件清空（App.DeletePanel）——分组从此不存在，它的 profile 只有自己的
-//     标签 ID 能访问，留着只是白占空间、还把密码继续留在盘上；
-//   - 手动「重置数据」（App.ResetPanelData）——面板保留，只清数据。
-//
-// 清空目录 → 下次打开时 newPanelWindow 会重新 MkdirAll，标签 ID 不变，
-// 因此配置、快捷方式、窗口状态全都不用动。
+// 四个调用场景见 docs/behavior.md#会话状态，坑见 docs/pitfalls.md。
+// 清空后 newPanelWindow 会重新 MkdirAll，标签 ID 不变，配置 / 快捷方式 / 窗口状态都不用动。
 
 // sessionClearPolicy 决定删除 profile 目录时要不要「确认它不再出现」。
 type sessionClearPolicy int
@@ -37,7 +30,7 @@ const (
 	// clearUntilStable 删到目录连续若干次检查都不存在为止。
 	//
 	// 用于**关闭面板后**的清空：此时浏览器进程还在退出，会把目录重建回来
-	// （2026-09-30 实测：`RemoveAll` 成功、目录随后带着一整棵 EBWebView 树又冒了出来，
+	// （实测：`RemoveAll` 成功、目录随后带着一整棵 EBWebView 树又冒了出来，
 	// 端到端用例当场逮到），只删一次就等于没清干净 —— 而「不留残留」正是这个功能的
 	// 全部价值所在。浏览器一停，目录就不会再冒出来。
 	clearUntilStable

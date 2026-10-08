@@ -310,6 +310,37 @@ document.querySelector('#app').innerHTML = `
     </form>
   </dialog>
 
+  <dialog id="shortcut-dialog" class="confirm-dialog" aria-labelledby="sh-title">
+    <form method="dialog" class="confirm-form">
+      <p class="section-label">${t('sc.sectionLabel')}</p>
+      <h2 id="sh-title"></h2>
+      <p id="sh-message" class="confirm-message"></p>
+
+      <div class="confirm-option">
+        <p class="confirm-option-hint">${t('sc.currentLabel')}</p>
+        <ul id="sh-current-list" class="shortcut-list"></ul>
+      </div>
+
+      <div class="confirm-option" id="sh-rename-block">
+        <p class="confirm-option-hint">${t('sc.afterLabel')}</p>
+        <ul id="sh-target-list" class="shortcut-list"></ul>
+      </div>
+
+      <div class="confirm-option" id="sh-extra-block" hidden>
+        <p id="sh-extra-hint" class="confirm-option-hint"></p>
+        <ul id="sh-extra-list" class="shortcut-list"></ul>
+      </div>
+
+      <p id="sh-icon-note" class="confirm-option-hint"></p>
+      <p id="sh-footnote" class="confirm-footnote"></p>
+
+      <div class="confirm-actions">
+        <button id="sh-cancel" value="cancel">${t('sc.cancel')}</button>
+        <button id="sh-confirm" class="primary" value="confirm">${t('sc.confirm')}</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="icon-dialog" class="confirm-dialog" aria-labelledby="ic-title">
     <form method="dialog" class="confirm-form">
       <p class="section-label">${t('ic.sectionLabel')}</p>
@@ -383,6 +414,18 @@ const ptShortcutList = document.querySelector('#pt-shortcut-list');
 const ptFootnote = document.querySelector('#pt-footnote');
 const ptReveal = document.querySelector('#pt-reveal');
 const iconDialog = document.querySelector('#icon-dialog');
+const shortcutDialog = document.querySelector('#shortcut-dialog');
+const shTitle = document.querySelector('#sh-title');
+const shMessage = document.querySelector('#sh-message');
+const shCurrentList = document.querySelector('#sh-current-list');
+const shRenameBlock = document.querySelector('#sh-rename-block');
+const shTargetList = document.querySelector('#sh-target-list');
+const shExtraBlock = document.querySelector('#sh-extra-block');
+const shExtraHint = document.querySelector('#sh-extra-hint');
+const shExtraList = document.querySelector('#sh-extra-list');
+const shIconNote = document.querySelector('#sh-icon-note');
+const shFootnote = document.querySelector('#sh-footnote');
+const shCancel = document.querySelector('#sh-cancel');
 const icTitle = document.querySelector('#ic-title');
 const icMessage = document.querySelector('#ic-message');
 const icPreview = document.querySelector('#ic-preview');
@@ -497,26 +540,19 @@ function render() {
       const btn = card.querySelector('[data-action="shortcut"]');
       btn.disabled = true;
       try {
-        // 一个分组桌面只留一份快捷方式：已经有了就先问一句再覆盖，
-        // 而不是默默再堆一个「名字 (2).lnk」出来（用户分不清哪个是哪个）。
+        // 一个分组桌面只留一份快捷方式：已经有了一份，就先把「现在是哪一份、会变成哪一份」
+        // 摆出来让用户选，而不是默默再堆一个「名字 (2).lnk」出来（用户分不清哪个是哪个）。
         const info = await InspectPanelShortcut(panel.id);
-        if (info.exists) {
-          const extra =
-            (info.extra || []).length > 0
-              ? t('shortcut.extraNote', { count: info.extra.length, list: info.extra.join('\n') })
-              : '';
-          const iconNote = info.iconPath
-            ? t('shortcut.iconNoteExisting')
-            : t('shortcut.iconNoteNone');
-          if (!confirm(t('shortcut.confirmOverwrite', { name: panel.name, path: info.shortcuts[0], extra, iconNote }))) {
-            return;
-          }
+        if (info.exists && !(await askShortcutPanel(panel, info))) {
+          return;
         }
         const result = await CreatePanelShortcut(panel.id);
         const lines = [
           result.created
             ? t('shortcut.created', { path: result.path })
-            : t('shortcut.overwritten', { path: result.path }),
+            : result.renamed
+              ? t('shortcut.renamed', { path: result.path })
+              : t('shortcut.overwritten', { path: result.path }),
           '',
           t('shortcut.openHint', { name: panel.name }),
         ];
@@ -687,6 +723,58 @@ function askDeletePanel(panel, shortcuts) {
   });
 }
 
+// ─── 桌面快捷方式的确认对话框 ──────────────────────────────────────────────────
+
+// askShortcutPanel 在桌面上已经有一份时问「换成当前面板名的那一份 / 保留现有不动」。
+// 返回 true（继续）/ false（什么都不做）。
+//
+// 为什么不用 window.confirm：一句话说不清「现在是哪一份、会变成哪一份」，而这两件事
+// 正是用户要看的 —— 旧版只说「桌面已经有「面板名」的快捷方式，是否覆盖？」，改完名再点
+// 按钮时会冒出一个用户从没见过的文件名，看着像程序认错了东西。
+//
+// 两个动作的措辞刻意落到「结果」上而不是「技术动作」上：
+//   - 「更新并替换」= 把既有的那一份换成以当前面板名命名的新一份，旧的随即删掉；
+//   - 「保留现有，不改动」= 一个字节都不碰，等同于取消。
+//
+// 刻意**不提供**「再建一份、两份都留着」：桌面是给人看的，同一分组堆两份只会让人分不清
+// 点哪个，删面板时还要一口气清一堆。
+function askShortcutPanel(panel, info) {
+  const current = info.shortcuts || [];
+  const extra = info.extra || [];
+  const target = info.targetPath || (current.length > 0 ? current[0] : '');
+  // 名字会变才展示「将变为」：名字本来就一致时讲改名，只会让人以为还有别的东西要动。
+  const willRename = target && current.length > 0 && current[0] !== target;
+
+  shTitle.textContent = t('sc.title', { name: panel.name });
+  shMessage.textContent = willRename ? t('sc.messageRename') : t('sc.messageSame');
+
+  shCurrentList.innerHTML = current.map((p) => `<li title="${esc(p)}">${esc(p)}</li>`).join('');
+  shTargetList.innerHTML = `<li title="${esc(target)}">${esc(target)}</li>`;
+  shRenameBlock.hidden = !willRename;
+
+  shExtraBlock.hidden = extra.length === 0;
+  if (extra.length > 0) {
+    shExtraHint.textContent = t('sc.extraHint', { count: extra.length });
+    shExtraList.innerHTML = extra.map((p) => `<li title="${esc(p)}">${esc(p)}</li>`).join('');
+  }
+
+  shIconNote.textContent = info.iconPath ? t('sc.iconNoteExisting') : t('sc.iconNoteNone');
+  shFootnote.textContent = t('sc.footnote');
+
+  return new Promise((resolve) => {
+    const onClose = () => {
+      shortcutDialog.removeEventListener('close', onClose);
+      resolve(shortcutDialog.returnValue === 'confirm');
+    };
+    shortcutDialog.addEventListener('close', onClose);
+    shortcutDialog.returnValue = ''; // 复位：上次的 'confirm' 不能被这次继承
+    shortcutDialog.showModal();
+    // 聚焦「更新并替换」：这次操作完全可逆（覆盖的是本程序自己建的快捷方式），
+    // 用户点这个按钮本意就是要一份能用的快捷方式，回车不该白点一次。
+    document.querySelector('#sh-confirm').focus();
+  });
+}
+
 // ─── 重置面板数据的确认对话框 ──────────────────────────────────────────────────
 
 // askResetPanel 弹出重置确认对话框，返回 true（确认）/ false（取消）。
@@ -735,8 +823,8 @@ function setPinFootnote(text, warn) {
 
 // showPinDialog 说明为什么不能一键固定，并把用户该点的那几步讲清楚。
 //
-// 这里**不替用户打开资源管理器**（2026-09-30 调整）：弹框的同时把前台抢走，
-// 用户还没读完就切过去了，属于擅作主张。选中快捷方式由用户读完点「选中快捷方式」触发。
+// 这里**不替用户打开资源管理器**：弹框的同时把前台抢走，用户还没读完就切过去了，
+// 属于擅作主张（见 docs/behavior.md#固定到任务栏）。选中快捷方式由用户读完点「选中快捷方式」触发。
 // 也不装模作样地放一个「自动固定」按钮：Windows 不给这个能力（见 taskbar_windows.go）。
 function showPinDialog(panel, result) {
   pinPanelID = panel.id;
@@ -772,7 +860,7 @@ ptReveal.addEventListener('click', async () => {
 let iconPanelID = '';
 
 // 主按钮的文案。桌面没有快捷方式时是「创建快捷方式并应用」—— 那时这个动作确实会
-// 顺手创建一份，只说「应用」会让人以为只是存个图标（用户 2026-09-30 的原话：
+// 顺手创建一份，只说「应用」会让人以为只是存个图标（反馈原话：
 // 「当桌面没有快捷方式时，刷新图标后只是下载保存动作，这没啥意义」）。
 let iconApplyLabel = t('ic.apply');
 

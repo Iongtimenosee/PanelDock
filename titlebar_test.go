@@ -40,7 +40,7 @@ func TestTitleBarLayoutHasPinButton(t *testing.T) {
 
 // TestTitleBarPinGlyphs 钉住置顶开关的两个字形。
 //
-// 码位是 2026-09-30 在本机 `C:\Windows\Fonts\segmdl2.ttf` 的 cmap 里逐个确认存在的
+// 码位是 在本机 `C:\Windows\Fonts\segmdl2.ttf` 的 cmap 里逐个确认存在的
 // （E718 Pin / E840 Pinned），别凭记忆改：字体里没有的码位不会报错，只会渲染成豆腐块，
 // 而「渲染成豆腐块」编译、vet、单测、E2E 全都发现不了。
 //

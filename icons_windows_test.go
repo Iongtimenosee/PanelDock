@@ -44,7 +44,7 @@ func TestPanelParseIconSizes(t *testing.T) {
 
 // ─── 脚本返回值的解析 ───────────────────────────────────────────────────────
 
-// TestPanelDecodeIconPayloadHandlesBothShapes 守住 2026-09-30 那个「静默不工作」的坑。
+// TestPanelDecodeIconPayloadHandlesBothShapes 守住那个「静默不工作」的坑。
 //
 // `ExecuteScript` 返回的是**脚本完成值的 JSON 编码**，于是脚本写 `return out`（对象）
 // 与写 `return JSON.stringify(out)`（字符串）会得到两种完全不同的 raw：
@@ -67,7 +67,7 @@ func TestPanelDecodeIconPayloadHandlesBothShapes(t *testing.T) {
 	// ② 脚本 `return JSON.stringify(out)`：raw 是「带引号并转义」的 JSON 字符串。
 	quoted := strconv.Quote(inner) // 等价于 JSON.stringify 之后的原始字节
 	if got, ok := panelDecodeIconPayload(quoted); !ok {
-		t.Error("字符串形态解析失败（这就是 2026-09-30 事故的写法）")
+		t.Error("字符串形态解析失败（这就是 ExecuteScript 静默失效的写法）")
 	} else if len(got.Icons) != 1 || got.Icons[0].Href != "http://n/i.png" {
 		t.Errorf("字符串形态解出的 icons = %+v", got.Icons)
 	}
@@ -317,7 +317,7 @@ func TestPanelMonogramImageShape(t *testing.T) {
 // TestBitmapFromImageWritesBGR 钉住 DIB 的字节序。
 //
 // `image.RGBA.Pix` 是 RGBA，而 32bpp DIB 是 **BGRA** —— 两者必须逐通道换位。
-// 2026-09-30 重构时把这段写成了 `copy(buf, pm.Pix)`，于是 R 和 B 互换：
+// 写成 `copy(buf, pm.Pix)` 会让 R 与 B 互换：
 // 纯红的 favicon 在标题栏上显示成**纯蓝**。而这件事**编译、vet、单测、E2E 全都发现不了**
 // （E2E 只断言 WM_GETICON 非零，跟画出来的颜色无关），是靠逐像素采样标题栏才逮到的。
 // 纯红/纯蓝是刻意的取样色：任何其它颜色换位后都不会这么一望即知。
@@ -392,7 +392,7 @@ const panelDINormal = 0x0003
 //
 // 别省 xHotspot/yHotspot 这两个字段：它们在 x64 上占满偏移 4..11，
 // 漏掉之后 hbmMask 会落到偏移 8（应该 16），于是读出来的是**掩码位图**（1bpp）
-// 而不是彩色位图 —— 2026-09-30 就这么被坑过一轮，症状是「16×16 的图标读回来是 1bpp」。
+// 而不是彩色位图 —— 症状是「16×16 的图标读回来是 1bpp」。
 // 生产代码里那版的 ICONINFO 也是同样的错，只是当时表现为 CreateIconIndirect 返回 NULL。
 type panelICONINFO2 struct {
 	FIcon    int32   // offset 0

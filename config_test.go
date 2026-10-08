@@ -212,7 +212,7 @@ func TestConfigMigration(t *testing.T) {
 // TestConfigMigrationShortcutsArrayToOne 锁定「一个分组桌面只留一个快捷方式」的旧配置迁移。
 //
 // 旧版每点一次「桌面快捷方式」就新建一份 .lnk，配置里于是攒成一串路径
-// （2026-09-30 用户在自己的 config.json 里看到的就是这个）。载入时收敛成第一个
+// （用户在自己的 config.json 里看到的就是这个）。载入时收敛成第一个
 // 仍然存在的那个，并把 shortcuts 数组从配置文件里抹掉 —— 留着它下次保存又写回去了。
 func TestConfigMigrationShortcutsArrayToOne(t *testing.T) {
 	dir := t.TempDir()

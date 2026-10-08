@@ -11,14 +11,12 @@ import (
 // ─── 分组的「保存登录密码」（WebView2 原生自动填充里的密码部分）─────────────────
 //
 // 开关本身是分组级的（PanelConfig.PasswordAutosave，默认开启），这里只负责把它送到
-// WebView2：每个标签创建 WebView2、以及用户在卡片上改这个开关时，各调一次。
+// WebView2：每个标签创建时、以及用户在卡片上改这个开关时，各调一次。
 //
-// 密码由 WebView2 自己加密后存在该标签的 profile 目录里（`Login Data` + `Local State`
-// 的 DPAPI 主密钥），本工具既不读取也不导出 —— 所以「关闭即清空」的分组一关闭，
-// 密码就随 profile 一起没了，这正是用户要的那条语义。
+// 密码由 WebView2 自己加密存在该标签 profile 里，本工具既不读取也不导出。
 //
-// ⚠️ 这个属性只管「保存」：关掉之后不再存新密码、不再弹保存提示，但**此前已经存下来的
-// 密码仍会被建议与回填**（官方 specs/Autofill.md 明写）。想彻底不留，用「关闭即清空」。
+// ⚠️ 这个属性只管「保存」：关掉后不再存新密码，但已存下的仍会被回填（官方 Autofill.md 明写）
+// —— 见 docs/behavior.md#保存登录密码，想彻底不留只能靠「关闭即清空」。
 
 // panelIIDSettings4 是 IID_ICoreWebView2Settings4（{cb56846c-4168-4d53-b04f-03b6d6796ff2}）。
 var panelIIDSettings4 = windows.GUID{
@@ -31,17 +29,12 @@ var panelIIDSettings4 = windows.GUID{
 // panelWebViewSettingsVtbl 是**继承链完整**的 ICoreWebView2Settings4 vtable。
 //
 // 槽位号 = IUnknown(0–2) 之后的**连续位置**，按官方 IDL 逐条数：
-// Settings1 3–20（18 项）、Settings2 21–22（UserAgent）、Settings3 23–24
-// （AreBrowserAcceleratorKeysEnabled）、Settings4 25–28（IsPasswordAutosaveEnabled 与
-// IsGeneralAutofillEnabled 各 get/put）。
+// Settings1 3–20、Settings2 21–22（UserAgent）、Settings3 23–24、Settings4 25–28。
+// 本结构只用到 26，前面那些都是为对齐槽位。
 //
-// ⚠️ 不要拿 go-webview2 的 pkg/webview2/ICoreWebView2Settings{,2,3,4}.go 当基准：它把每个
-// SettingsN 当成**独立接口**、只嵌 IUnknownVtbl，槽位与真实 ABI 对不上；而且它的
-// GetICoreWebView2SettingsN() 是直接从 ICoreWebView2 QI —— Settings4 由 Settings 对象
-// 实现，那条路必然失败。它是核对 ICoreWebView2 槽位的基准，Settings 系列只能按 IDL 数。
-//
-// 少写一个方法，其后所有槽位整体错位一格，且**编译、vet、单测全不报错**（详见
-// panel_window_windows.go 的 panelWebViewVtbl 注释）。本结构只用到 26，前面的是为对齐槽位。
+// ⚠️ 不要拿依赖里 ICoreWebView2Settings{,2,3,4}.go 当基准：它把每个 SettingsN 当独立接口、
+// 只嵌 IUnknownVtbl，槽位与真实 ABI 对不上；且它从 ICoreWebView2 直接 QI Settings4，
+// 而 Settings4 由 Settings 对象实现，那条路必然失败。槽位陷阱见 docs/pitfalls.md。
 type panelWebViewSettingsVtbl struct {
 	panelIUnknownVtbl
 	GetIsScriptEnabled                  panelCOMProc // 3

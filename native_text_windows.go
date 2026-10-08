@@ -4,7 +4,7 @@ package main
 
 // 原生控件的界面文案词典（i18n 的 Win32 侧）。
 //
-// 范围（2026-10-01 与用户商定）：本程序**自己画的**原生界面要跟语言设置走 ——
+// 范围：本程序**自己画的**原生界面要跟语言设置走 ——
 // 「关闭面板窗口」询问框、「面板已停用」询问框、托盘菜单、托盘悬浮提示、
 // 面板询问框的补充说明。WebView2 自带的右键菜单、系统输入框等跟随 Windows
 // 显示语言，由系统自己本地化，这里管不到。
@@ -52,15 +52,19 @@ type enablePromptText struct {
 }
 
 // trayText 是托盘图标相关的界面文案（悬浮提示 + 右键菜单）。
+//
+// 菜单里的「已隐藏的窗口」项**直接用分组名**，不带任何前缀后缀：
+// 用户的用途是「一眼认出并点回来」，套一层「显示 xxx」反而把名字挤到后面去了。
 type trayText struct {
-	Tip         string
-	ShowHide    string
-	TopMost     string
-	ClosePanel  string
+	Tip string
+	// NoHidden 是一个都没有时的占位项（置灰），避免菜单空得让人以为程序坏了。
+	NoHidden    string
 	OpenManager string
 	Quit        string
-	// ActiveSuffixFmt 是菜单项后面活动面板名的格式（中文用全角括号，英文用半角）。
-	ActiveSuffixFmt string
+	// CloseHidden 是「彻底关闭」子菜单的标题：里面列的是同一批窗口，点了就真的关掉。
+	// 关闭和「取回」分成两处入口，是因为它们挨在一起时手滑一次就丢了一个窗口 ——
+	// 丢东西这件事该多走一步。子菜单里的项同样只写分组名。
+	CloseHidden string
 }
 
 // configText 是配置导出/导入两个原生文件对话框的标题。
@@ -100,13 +104,11 @@ var nativeUITexts = map[string]nativeUIText{
 			FallbackName: "这个面板",
 		},
 		Tray: trayText{
-			Tip:             "PanelDock · Web管理面板启动器",
-			ShowHide:        "显示/隐藏面板",
-			TopMost:         "窗口置顶",
-			ClosePanel:      "关闭面板",
-			OpenManager:     "打开管理面板",
-			Quit:            "退出 PanelDock",
-			ActiveSuffixFmt: "（{name}）",
+			Tip:         "PanelDock · Web管理面板启动器",
+			NoHidden:    "没有已隐藏的窗口",
+			OpenManager: "打开管理面板",
+			Quit:        "退出 PanelDock",
+			CloseHidden: "彻底关闭窗口",
 		},
 		Config: configText{
 			ExportTitle: "导出配置",
@@ -135,13 +137,11 @@ var nativeUITexts = map[string]nativeUIText{
 			FallbackName: "this panel",
 		},
 		Tray: trayText{
-			Tip:             "PanelDock · Web panel launcher",
-			ShowHide:        "Show/hide panel",
-			TopMost:         "Always on top",
-			ClosePanel:      "Close panel",
-			OpenManager:     "Open manager",
-			Quit:            "Quit PanelDock",
-			ActiveSuffixFmt: " ({name})",
+			Tip:         "PanelDock · Web panel launcher",
+			NoHidden:    "No hidden windows",
+			OpenManager: "Open manager",
+			Quit:        "Quit PanelDock",
+			CloseHidden: "Close a window for good",
 		},
 		Config: configText{
 			ExportTitle: "Export configuration",

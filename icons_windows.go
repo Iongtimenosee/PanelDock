@@ -115,7 +115,7 @@ return out;})()`
 //   - 脚本写 `return JSON.stringify(out);`（字符串）→ raw = `"{\"manifest\":...}"`，
 //     多了一层引号与转义，直接解结构体**必然失败**。
 //
-// 2026-09-30 就栽在第二种写法上：脚本把对象多 stringify 了一次，Go 侧解不出来，
+// 典型错误就是第二种写法：脚本把对象多 stringify 了一次，Go 侧解不出来，
 // 而失败路径是静默 `return 0` —— 症状是「favicon 永远不出现，日志一片干净」，
 // 排查方向还容易被带偏去怀疑 vtable 槽位。两种形态都收下，让这个坑彻底消失。
 func panelDecodeIconPayload(raw string) (panelIconPayload, bool) {
@@ -634,7 +634,7 @@ func bitmapFromImage(src image.Image, size int) uintptr {
 	// **必须逐通道换位，不能用 copy**：DIB 的字节序是 BGRA，而 image.RGBA.Pix 是 RGBA，
 	// 直接 copy 会把 R 写进 B 的位置 —— 纯红图标显示成纯蓝。
 	//
-	// 2026-09-30 把这段从 titlebar_windows.go 搬进本文件时图省事写成了 copy，favicon
+	// 这段从 titlebar_windows.go 搬来时图省事写成了 copy，favicon
 	// 颜色整体反了（红↔蓝），而**编译、vet、单测、E2E 全部照常通过**（E2E 只断言
 	// WM_GETICON 非零，单测没覆盖这条绘制路径）。是靠逐像素采样标题栏才发现的。
 	// 配套回归用例：TestBitmapFromImageWritesBGR。

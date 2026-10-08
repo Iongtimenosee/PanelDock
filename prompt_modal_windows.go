@@ -225,7 +225,7 @@ func registerPromptClass() error {
 // ok 为 false 表示用户取消 / 保持现状，或对话框无法创建 —— 两种情况调用方都应中止后续动作。
 //
 // 它在**调用方所在线程**上跑自己的消息循环，因此绝不能从 Wails 绑定方法里调用：
-// 那会在 WebView2 的消息处理线程上自建 GetMessage 循环（见 AGENTS.md）。
+// 那会在 WebView2 的消息处理线程上自建 GetMessage 循环（见 AGENTS.md#三条最容易踩的规则）。
 // 合法调用点都是自建窗口的消息线程或专用 goroutine（关闭询问 = 面板窗口线程；启用询问 = IPC 处理 goroutine）。
 func showPromptModal(owner uintptr, spec promptModalSpec) (promptResult, bool) {
 	runtime.LockOSThread()

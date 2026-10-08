@@ -105,42 +105,138 @@ type shortcutIPersistFile struct {
 
 // ─── 对外接口 ──────────────────────────────────────────────────────────────────
 
+// shortcutWrite 是 createDesktopShortcut 的结果。
+type shortcutWrite struct {
+	// Path 是这次写下的 .lnk 完整路径。
+	Path string
+	// Created 为真表示桌面本来没有这个分组的快捷方式，这次是新建。
+	Created bool
+	// Renamed 为真表示覆盖既有那份时，把它的文件名同步成了当前面板名（旧文件已被替换掉）。
+	Renamed bool
+}
+
 // createDesktopShortcut 确保该面板在桌面上有且仅有一份快捷方式，返回它的完整路径。
 // exePath 为目标程序绝对路径，panelID 追加为 `--open` 参数，panelName 用于命名。
 // iconPath 非空时快捷方式用它当图标（站点图标缓存），否则用 exe 自带的图标。
 // recorded 是配置里记录的路径，用来在扫描结果里优先挑中「我们一直在维护的那一份」。
 //
-// 已有就**覆盖**那一份（保留用户自己起的文件名），没有才新建 —— 不再生成
+// 已有就**覆盖**那一份，并把它的名字同步成当前面板名；没有才新建 —— 不再生成
 // 「名字 (2).lnk」这类副本：桌面是给人看的，同一个分组堆出好几份只会让人分不清哪个是哪个，
-// 删面板时还要一口气清一堆（2026-09-30 用户要求「一个分组桌面只能创建一个快捷方式」）。
+// 删面板时还要一口气清一堆。
 //
-// created 为真表示这次写的是新文件；为假表示改写（覆盖）了桌面原有的那一份。
+// 名字为什么一定要同步（而不是保留用户起的文件名）：面板改名时快捷方式已经跟着改名了
+// （见 renamePanelDesktopShortcut），若点这个按钮又保留旧名，同一个分组就会出现
+// 「改名自动同步、点按钮不同步」的两套规则 —— 用户只会当程序坏了。
 //
 // 注意：SHGetFolderPathW 与 IShellLink 都要求 COM 已初始化，全程包在 shortcutWithCOM 内。
 //
 // 桌面目录必须走可注入的 shortcutDesktopDirectory（而不是直接调 shortcutDesktopDir）：
-// 否则测试里调 CreatePanelShortcut 会往**用户真实桌面**写文件（2026-09-30 被
-// TestPinPanelToTaskbarCreatesShortcutWhenMissing 逮到，桌面上真的多了一个 .lnk）。
-func createDesktopShortcut(exePath, panelID, panelName, iconPath, recorded string) (string, bool, error) {
-	var lnkPath string
-	created := false
+// 否则测试里调 CreatePanelShortcut 会往**用户真实桌面**写文件
+// （TestPinPanelToTaskbarCreatesShortcutWhenMissing 逮到过：桌面上真的多了一个 .lnk）。
+func createDesktopShortcut(exePath, panelID, panelName, iconPath, recorded string) (shortcutWrite, error) {
+	var out shortcutWrite
+	var stale string
 	err := shortcutWithCOM(func() error {
 		desktop, err := shortcutDesktopDirectory()
 		if err != nil {
 			return err
 		}
 		if existing := findPanelDesktopShortcut(desktop, panelID, recorded); existing != "" {
-			lnkPath = existing
+			out.Path = shortcutRenameTarget(desktop, panelName, existing)
+			if !strings.EqualFold(out.Path, existing) {
+				stale = existing
+				out.Renamed = true
+			}
 		} else {
-			lnkPath = uniqueShortcutPath(desktop, panelName)
-			created = true
+			out.Path = uniqueShortcutPath(desktop, panelName)
+			out.Created = true
 		}
-		return writeShortcutLnk(lnkPath, exePath, "--open "+panelID, "PanelDock · "+panelName, iconPath)
+		return writeShortcutLnk(out.Path, exePath, "--open "+panelID, shortcutDescription(panelName), iconPath)
 	})
 	if err != nil {
-		return "", false, err
+		return shortcutWrite{}, err
 	}
-	return lnkPath, created, nil
+	// 新名字确实写成功了才删旧的：写失败时旧的那份还在，不会被凭空抹掉。
+	if stale != "" {
+		_ = os.Remove(stale)
+	}
+	return out, nil
+}
+
+// shortcutDescription 是快捷方式备注文字的格式（悬停时看到的说明）。
+// 抽成函数是因为创建与改名两处都要用同一句 —— 各写一遍的话，改了格式就会漏一处。
+func shortcutDescription(panelName string) string {
+	return "PanelDock · " + panelName
+}
+
+// renamePanelDesktopShortcut 把该分组在桌面的快捷方式改名为 newName，返回改名后的路径。
+// 桌面没有这个分组的快捷方式时返回空串 —— 改名**不新建**：用户没要过快捷方式，
+// 改个面板名不该凭空在桌面上多出一个 .lnk。
+//
+// 同步的是三样：文件名、备注里的面板名、以及配置里记录的路径（后者由调用方写回）。
+// 目标与参数原样保留：面板 ID 没变，快捷方式本来就还能用，动它只会把人带到别处去。
+//
+// 顺序刻意是「先重写内容，再改文件名」：写内容失败时文件还在原位、内容也还是旧的，
+// 等于什么都没发生；反过来先改名再写，写失败就留下一个改了名却内容过期的文件。
+//
+// 任务栏固定目录**刻意不在范围内** —— 见 collapsePanelDesktopShortcuts 的理由。
+func renamePanelDesktopShortcut(panelID, newName, recorded string) (string, error) {
+	desktop, err := shortcutDesktopDirectory()
+	if err != nil {
+		return "", err
+	}
+	existing := findPanelDesktopShortcut(desktop, panelID, recorded)
+	if existing == "" {
+		return "", nil
+	}
+	want := shortcutRenameTarget(desktop, newName, existing)
+
+	var target, args, icon string
+	if err := shortcutWithCOM(func() error {
+		return withLoadedShortcut(existing, func(link *shortcutIShellLinkW) error {
+			var inner error
+			if target, inner = shortcutGetPath(link); inner != nil {
+				return fmt.Errorf("IShellLinkW.GetPath: %w", inner)
+			}
+			if args, inner = shortcutGetArguments(link); inner != nil {
+				return fmt.Errorf("IShellLinkW.GetArguments: %w", inner)
+			}
+			if icon, _, inner = shortcutGetIconLocation(link); inner != nil {
+				return fmt.Errorf("IShellLinkW.GetIconLocation: %w", inner)
+			}
+			return nil
+		})
+	}); err != nil {
+		return "", err
+	}
+
+	if err := shortcutWithCOM(func() error {
+		return writeShortcutLnk(existing, target, args, shortcutDescription(newName), icon)
+	}); err != nil {
+		return "", err
+	}
+	if !strings.EqualFold(want, existing) {
+		if err := os.Rename(existing, want); err != nil {
+			return existing, err
+		}
+	}
+	return want, nil
+}
+
+// shortcutRenameTarget 算出改名后的目标路径：旧文件已经叫这个名字就不动（含只有大小写不同），
+// 这个名字空着就直接用，被别的文件占了才退到带序号的名字。
+//
+// 不能直接用 uniqueShortcutPath：旧文件此刻还在桌面上，它会把自己当成「已占用」，
+// 于是每次改名都多出一个「新名 (2).lnk」。
+func shortcutRenameTarget(desktop, newName, existing string) string {
+	first := filepath.Join(desktop, sanitizeShortcutName(newName)+".lnk")
+	if strings.EqualFold(first, existing) {
+		return existing
+	}
+	if _, err := os.Stat(first); errors.Is(err, os.ErrNotExist) {
+		return first
+	}
+	return uniqueShortcutPath(desktop, newName)
 }
 
 // findPanelDesktopShortcut 在桌面目录里找出该分组**已有的**快捷方式；一份都没有时返回空串。
