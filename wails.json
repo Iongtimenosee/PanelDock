@@ -13,7 +13,7 @@
   "info": {
     "companyName": "PanelDock Contributors",
     "productName": "PanelDock",
-    "productVersion": "1.0.0",
+    "productVersion": "1.0.1",
     "copyright": "Copyright (c) 2026 PanelDock Contributors",
     "comments": "Lightweight isolated WebView2 sessions for LAN admin pages."
   }
