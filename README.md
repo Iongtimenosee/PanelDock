@@ -1,139 +1,139 @@
 # PanelDock
 
-Windows 桌面轻量工具：给那些**你总想立刻打开瞄一眼**的后台页面一个专属窗口 —— 路由器后台、NAS、OpenClash / Zashboard、运维后台、状态监测、电商后台。凡是「查状态、看一眼、确认它还在不在」的页面都算：一个面板一个窗口、一个独立会话，彼此互不干扰，也替你卸下浏览器里越积越多的标签页。
+A lightweight Windows desktop tool that gives every back-end page you want to glance at any second its own window — router consoles, NAS, OpenClash / Zashboard, ops dashboards, status monitors, e-commerce back-ends, or any site you would rather keep in a window of its own. One window per panel instead of browser tabs piling up: **5x less memory, faster, safer, portable.**
 
-*[English](README.en.md) · 简体中文*
+*English · [简体中文](README.zh-CN.md)*
 
-## 为什么用它，而不是浏览器的标签页
+## Why use this instead of a browser tab
 
-浏览器是一台什么都能干的机器，代价是**你只想要一个功能，却要为整台机器付费**。PanelDock 只保留最后那一步：
+A browser is a machine that can do anything. The catch: **you want one feature, and you pay for the whole machine.** PanelDock keeps only the last step:
 
-- **省内存**。一个面板就是一个 WebView2，只为这一页付费。同一个路由器页面，浏览器标签与 PanelDock 的常驻内存差**数倍量级**，页面越简单省得越狠。
-- **省 CPU**。没有扩展可后台唤醒、没有同步轮询、没有更新检查、没有遥测。关掉面板窗口，它就不在消耗任何东西。
-- **更快**。双击桌面快捷方式直达，不经过浏览器外壳的冷启动。
-- **更安全**。面板窗口**不向网页注入任何脚本或桥接**，页面拿不到任何本地能力。
-- **真便携**。绿色版解压即用，不写注册表。**在 exe 旁边新建一个空的 `data` 文件夹**就切成便携模式，整个文件夹拷走即迁移（见「数据位置」）。
+- **It saves memory.** A panel *is* a WebView2, paying only for that one page. Open the same router page in a browser tab versus in PanelDock and PanelDock uses **5x less memory** — and the simpler the page, the bigger the gap.
+- **It saves CPU.** No extension can wake itself up, no sync is polling, no update checker, no telemetry. Close a panel window and it stops consuming anything at all.
+- **It's faster.** Double-click a desktop shortcut and you land directly on the target page — no browser shell cold-start in between.
+- **It's safer.** Panel windows **inject no script and expose no bridge**, so a page gets zero local capability.
+- **It's genuinely portable.** Unzip and run, nothing written to the registry. **Create an empty `data` folder next to the exe** and you switch to portable mode; copy that one folder and you have migrated (see "Data locations").
 
-## 功能
+## Features
 
-- 面板管理（新建 / 编辑 / 删除 / 启用停用 / **重置数据**），存于 `%APPDATA%\PanelDock\config.json`。
-- 每个面板支持多个标签，可增删**并排序**（顺序即标签栏顺序）；**每个标签一个独立 WebView2 profile**，登录会话互不干扰。一个标签即单标签面板，多个即分组。
-- 面板窗口是独立原生 Win32 窗口 + 原生标签栏，**不向网页注入任何脚本或桥接**。
-- 一键创建桌面快捷方式（`--open <面板ID>` 直达）；**面板改名时桌面那份跟着改名**；「固定任务栏」准备好快捷方式并给出引导，由你自己右键固定（Windows 不允许程序自己固定）。
-- 窗口置顶（**面板标题栏直接点图钉**）、记忆窗口位置与大小；托盘常驻，且**托盘行为集中在「应用设置」**：只有一处「关闭面板窗口时：询问 / 最小化到托盘 / 直接关闭」。设为「最小化到托盘」时**托盘图标被强制保留**（关掉的面板藏在托盘里，图标是找回它们的唯一入口）。
-- **关窗一律只关自己**：关闭面板只关那一个面板；管理窗口的关闭动作是固定的（有托盘图标或其它窗口就只关自己，都没有才退出）。另有「轻量模式下关掉最后一个面板即退出」（默认开）。
-- **双击托盘图标是开关**：在同一个窗口上来回「恢复 / 收回」，不必先放回桌面再点 X；右键菜单列出所有藏在托盘里的面板，点名字即取回，下方「彻底关闭窗口」子菜单才会真的关掉某一个。轻量模式下**只要没在托盘上操作过窗口**，每次关闭都直接真关（开几个面板都一样）—— 进程本来就要收工，藏起来的窗口再没机会拿出来；取回过一次之后才按常规留在托盘里。
-- **浅色 / 深色配色**与**中文 / English 界面语言**，各三档（`auto` 跟随系统）。**只换外壳，不碰页面** —— 面板里是别人的网页，本工具不注入任何样式或脚本。
-- **配置导出 / 导入**（换机 / 备份用）：只管 config.json，不含图标缓存与登录态；导入前自动备份为 `config.json.bak`，无效文件不会动现有配置。
-- **关闭后的浏览器状态可选**：默认「保留状态」；设为「关闭后清空」则关闭即删掉该面板所有标签的浏览器数据，下次打开等同全新环境（打开前还会再清一次兜底）。
-- **用快捷方式打开已停用的面板时会先问你**：可选「启用并打开」或「保持停用」，不再毫无反应。
-- **可保存登录密码**（分组级开关，默认开启）：由 WebView2 加密存在该分组的浏览器数据里，**本工具既不读取也不导出**。
-- **每个分组都能一键「重置数据」**：立刻清掉 Cookie、登录态、缓存、本地存储（**含已保存的密码**），保留面板本身。
-- **删除分组时数据一并清空**：与「重置数据」的区别只在面板本身是否保留。
+- Panel management (create / edit / delete / enable-disable / **reset data**), stored in `%APPDATA%\PanelDock\config.json`.
+- Each panel supports multiple tabs; tabs can be added, removed and **reordered** (the order is the order shown in the tab bar), and **each tab uses its own WebView2 profile**, so login sessions never interfere. One tab makes a single-tab panel; several tabs make a group.
+- Panel windows are independent native Win32 windows with a native tab bar and **inject nothing into the page and expose no bridge**.
+- One-click desktop shortcut creation (`--open <panelID>` launches straight into it); **renaming a panel renames its desktop shortcut too**; "Pin to taskbar" prepares the shortcut and walks you through it — you right-click to pin yourself (Windows does not let an app pin itself).
+- Always-on-top (**click the pin directly in the panel title bar**) and remembered window position and size; a resident tray icon, and **all tray behaviour lives in "App settings":** a single "when closing a panel window: ask / minimize to tray / close directly" — set it to "minimize to tray" and **the tray icon is forced on** (closed panels hide in the tray and the icon is the only way to get them back).
+- **Closing a window only ever closes that window.** Closing a panel closes only that panel; the manager window's action is fixed (a tray icon or another window means it just closes itself, otherwise it exits). Plus "in lightweight mode, quit after the last panel closes" (on by default).
+- **Double-clicking the tray icon is a toggle:** it brings the same window back and sends it away again, no need to put it back on the desktop and click X first; the right-click menu lists every panel hidden in the tray, click a name to get it back, while the "Close a window for good" submenu below actually closes one. In lightweight mode **as long as you have not operated the tray yet** every close closes for real, however many panels are open — the process is about to shut down anyway and a hidden window would never get another chance; once you restore one, it stays in the tray as usual.
+- **Light / dark theme** and **中文 / English** UI language, three options each (`auto` follows the system). **Only the shell changes, never the page** — panels show somebody else's web page and this tool injects no style or script.
+- **Export / import configuration** (migrating machines or backups): config.json only, no icon cache and no login state. The current config is auto-backed-up to `config.json.bak`, and an invalid import file leaves your existing config untouched.
+- **Post-close browser state is configurable**: "keep state" by default; "clear on close" deletes the browser data of all the panel's tabs on close, so the next open is a completely fresh environment (with one more cleanup pass before opening).
+- **Opening a disabled panel from a shortcut asks you first**: "enable and open" or "keep disabled" — double-clicking no longer does nothing.
+- **Login passwords can be saved** (per-group switch, on by default): encrypted by WebView2 into that group's browser data — **this tool neither reads it nor exports it**.
+- **One-click "reset data" per group**: immediately clears cookies, login state, cache and local storage (**including saved passwords**) while keeping the panel itself.
+- **Deleting a group clears its data too** — the only difference from "reset data" is whether the panel survives.
 
-## 安装
+## Installation
 
-两个包内容完全相同，挑一个下载。都需要 **WebView2 Runtime**（Windows 10 / 11 通常已自带；缺失时装一次微软 Evergreen Runtime 即可）。
+Both packages contain exactly the same thing — pick either. Both need the **WebView2 Runtime** (Windows 10 / 11 usually ship with it; if startup reports it missing, install Microsoft's Evergreen Runtime once).
 
-**安装包（推荐）**：双击 `PanelDock-windows-x64-setup.exe`，装到 `%LOCALAPPDATA%\Programs\PanelDock`，**不需要管理员权限**，开始菜单有快捷方式、系统里有卸载入口。
+**Installer (recommended)**: double-click `PanelDock-windows-x64-setup.exe`. It installs to `%LOCALAPPDATA%\Programs\PanelDock` with **no administrator rights**, gives you a Start Menu shortcut and a normal uninstall entry.
 
-**绿色版**：把 `PanelDock-windows-amd64.zip` 解压到任意目录，双击 `PanelDock.exe` 即可。无需安装、不写注册表，删目录即卸载。
+**Portable**: unzip `PanelDock-windows-amd64.zip` anywhere and double-click `PanelDock.exe`. No installer, nothing written to the registry; delete the folder to uninstall.
 
-> **卸载注意**：安装包卸载会一并删除 `%APPDATA%\PanelDock`（配置）与 `%LOCALAPPDATA%\PanelDock`（各标签登录会话）。想保留面板列表，卸载前用程序里的「导出配置」。
+> **Heads up on uninstalling**: the installer also removes `%APPDATA%\PanelDock` (config) and `%LOCALAPPDATA%\PanelDock` (per-tab login sessions). To keep your panel list, use "Export config" before uninstalling.
 
-每个版本附带 `SHA256SUMS.txt`：
+Every release ships a `SHA256SUMS.txt`:
 
 ```powershell
 Get-FileHash .\PanelDock-windows-x64-setup.exe -Algorithm SHA256
 ```
 
-### 首次运行：Windows SmartScreen 会拦一次
+### First run: Windows SmartScreen will block once
 
-程序**没有代码签名证书**（对免费开源工具不值当），所以 Windows 会对「来源不明的应用」弹一次拦截。这不是病毒告警，是微软对所有未签名新程序的统一提示，**下载后先解除锁定就不会出现**：
+The program **has no code-signing certificate** (not worth it for a free open-source tool), so Windows shows one "unrecognised app" prompt. This is not a virus warning — it is Microsoft's uniform notice for every unsigned new program, and **unblocking after download makes it go away**:
 
 ```powershell
 Unblock-File -Path .\PanelDock-windows-x64-setup.exe
 Unblock-File -Path .\PanelDock-windows-amd64.zip
 ```
 
-也可以右键 exe → 属性 → 底部勾选「解除锁定」。已申请面向开源项目的免费签名服务（SignPath Foundation），通过后后续版本会签名发布。
+Or right-click the exe → Properties → tick "Unblock" at the bottom. A free signing service for open-source projects (SignPath Foundation) has been applied for; once approved, later releases will be signed.
 
-## 数据位置
+## Data locations
 
-| 内容 | 路径 |
+| Content | Path |
 |---|---|
-| 配置 | `%APPDATA%\PanelDock\config.json` |
-| 各标签登录会话 | `%LOCALAPPDATA%\PanelDock\WebViewProfiles\<标签ID>` |
+| Configuration | `%APPDATA%\PanelDock\config.json` |
+| Per-tab login sessions | `%LOCALAPPDATA%\PanelDock\WebViewProfiles\<tabID>` |
 
-### 便携模式
+### Portable mode
 
-启动时若 exe 同目录存在 `data` 文件夹（**空的就行**，约定同 VSCode），上表两项改写到 `<exe目录>\data\` 下。整个「exe + data」拷走即完成迁移。没有这个文件夹就走系统目录，两套各存各的、互不干扰 —— 从压缩包解压出来的绿色版默认**没有** `data`，想随身携带自己建一个。
+If a `data` folder exists next to the exe at startup (**an empty one is enough** — same convention as VSCode), both items above move under `<exe dir>\data\`. Copy the whole "exe + data" folder and you have migrated. Without it you get the system directories; the two are independent and never interfere. Note that a portable build unzipped from the archive has **no** `data` folder by default — create one if you want to carry it around.
 
-**删除面板会连数据一起清**：每个标签的 WebView2 数据目录整棵删除（Cookie、登录态、缓存、本地存储、已保存的密码）。目录名就是标签 ID，新建面板会生成新 ID，所以**删掉之后重新添加也读不回**。清不干净时报错并中止删除，不会出现「面板没了、数据还在」。任务栏上已固定的图标不会被本工具改动。
+**Deleting a panel clears its data too**: the WebView2 data directory of every tab is removed wholesale (cookies, login state, cache, local storage, saved passwords). The directory name *is* the tab ID and a new panel gets new IDs, so **data cannot be read back by re-adding the panel afterwards**. If cleanup fails it reports the error and aborts — you never get "panel gone, data still there". Icons already pinned to the taskbar are left untouched.
 
-## 隐私
+## Privacy
 
-这个工具会经手路由器后台这类最敏感的登录页面，所以把话说清楚：**它不与任何第三方通讯，也不保存你的密码。**
+This tool handles the most sensitive login pages you have, so here it is plainly: **it talks to no third party, and it does not store your passwords.**
 
-- **开源可验证**。MIT 协议，源码公开；翻代码、抓包，五分钟就能核完下面每句话。
-- **不与任何第三方通讯**。没有遥测、崩溃上报、用量统计、更新检查、广告、账号体系 —— **根本不存在这样一台服务器**，代码里也没有这块逻辑。
-- **唯一的网络请求：向你自己的面板要一张图标**。标题栏要显示 favicon，于是向你**自己填的那个地址**发一次 GET（`User-Agent: PanelDock/1.0`）。内网站点、自签证书站点常取不到，此时标题栏退化显示首字母色块 —— 是取不到，不是坏了。
-- **密码不由本程序保存**。「保存登录密码」是 **WebView2 内建能力**：密码由它加密存进该标签的 profile，本程序不读取、不导出，也没有接口能拿到。
-- **其余数据都在本机**，位置见上，不外传、不同步。
-- **不向网页注入任何东西**，既不读也不改页面内容。
+- **Open source and verifiable.** MIT licensed, sources public; five minutes of reading code or capturing packets checks every claim below.
+- **It talks to no third party.** No telemetry, crash reporting, usage stats, update checker, ads or account system — **no such server exists**, and there is no such logic in the code.
+- **The only network request: asking your own panel for an icon.** The title bar shows the favicon, so it sends one GET to **the address you typed yourself** (`User-Agent: PanelDock/1.0`). Intranet and self-signed sites often return nothing, in which case the title bar falls back to an initial-letter tile — that is a miss, not a breakage.
+- **Passwords are not stored by this program.** Saving them is a **WebView2 built-in**: it encrypts them into that tab's profile, and this program never reads or exports them and has no interface that could.
+- **Everything else stays on this machine**, at the paths above: not transmitted, not synced, not uploaded.
+- **Nothing is injected into the page** — it neither reads nor modifies page content.
 
-## 几个行为的细节
+## A few behaviours in detail
 
-### 关闭后清空浏览器状态
+### Clearing browser state on close
 
-- **保留状态（默认）**：Cookie、登录态、缓存、本地存储都留在盘上，下次接着上次的会话。
-- **关闭后清空**：关闭时删掉该面板所有标签的数据目录。**打开前还会再清一次**，所以程序被强杀、断电、浏览器没退干净的残留都会被抹掉 —— 「每次打开都是全新环境」这条是成立的。
+- **Keep state (default)**: cookies, login state, cache and local storage stay on disk, so the next open resumes the previous session.
+- **Clear on close**: the data directories of all the panel's tabs are deleted on close. **There is one more cleanup pass before opening**, so leftovers from a crash, a forced kill or a browser that had not exited yet are wiped too — "every open is a fresh environment" actually holds.
 
-只影响这一个面板，其他面板的会话完全不受影响。
+Only that one panel is affected; other panels' sessions are untouched.
 
-### 重置数据
+### Reset data
 
-卡片上的「重置数据」是「关闭后清空」的即时补充：不用等关闭、不改任何设置，点一下立刻清（含 WebView2 已保存的密码）。**不动**面板名称、地址、标签、快捷方式、窗口位置与各项设置 —— 重置的是数据，不是面板。
+"Reset data" on a card is the on-demand counterpart of "clear on close": no waiting for a close, no settings changed, one click and it clears (including passwords WebView2 has already saved). It does **not** touch the panel name, address, tabs, shortcut, window position or any setting — this resets data, not the panel.
 
-**不可撤销**，所以必弹确认框且默认聚焦「取消」；**面板正开着时先关窗口再清**（数据目录被占用时「删不干净」不会有任何提示），清完不自动重开；**清不掉会明确报错**，不假装成功。
+**It cannot be undone**, so it always asks for confirmation with focus on "Cancel"; **if the panel is open, its window closes first** (a directory held open by the browser process gives you a silent partial delete) and it does not reopen afterwards; **failure is reported**, never faked as success.
 
-### 用快捷方式打开已停用的面板
+### Opening a disabled panel from a shortcut
 
-停用只阻止面板被打开，快捷方式与任务栏图标仍指向它。这时双击快捷方式会弹询问框：**启用并打开**（默认，回车即选中，写进配置）/ **保持停用**（什么都不做）。
+Disabling only prevents a panel from being opened; its shortcut and taskbar icon still point at it. Double-clicking the shortcut now asks you: **enable and open** (default, Enter selects it, written to config) or **keep disabled** (do nothing).
 
-**没有「记住我的选择」** —— 做成「以后自动启用」等于绕过你的停用意图。选「保持停用」时不会有别的窗口跳出来；轻量启动的进程留在托盘，需要时从托盘打开管理界面。
+**There is no "remember my choice"** — remembering "always enable from now on" would quietly override your decision to disable it. Choosing "keep disabled" pops nothing else; a lightweight launch stays in the tray, and you open the manager from there when you need it.
 
-### 固定到任务栏
+### Pinning to the taskbar
 
-Windows 10 起不再允许程序把图标固定到任务栏（微软立场：固定属于用户偏好），Windows 11 又封了仅剩的旁路。所以这个按钮做的是：
+Since Windows 10 an app may not pin itself to the taskbar (Microsoft's position: pinning is a user preference), and Windows 11 closed the last workarounds. So the button does this:
 
-准备好该面板的快捷方式 → 弹出说明（**此时不会替你打开任何窗口**）→ 你点「选中快捷方式」，资源管理器才打开并选中它 → 你右键选「固定到任务栏」（Win11 需先点「显示更多选项」）。
+It prepares the panel's shortcut → shows an explanation (**opening nothing on your behalf**) → you click "select the shortcut" and only then does Explorer open with it selected → you right-click and choose "Pin to taskbar" (on Windows 11, "Show more options" first).
 
-已固定时会直接告诉你。第 3 步要你自己点，是因为弹框同时抢走前台等于你还没读完就被切走了。为什么不用「重启资源管理器」硬写：那会让整条任务栏闪没再重建、所有托盘图标重载，还有覆盖你已排好布局的风险。
+If the panel is already pinned it simply tells you. Step 3 is yours to click because stealing the foreground while the dialog is up would cover the text you have not read yet. Why not write it in by restarting Explorer: the whole taskbar disappears and rebuilds, every tray icon reloads, and you risk overwriting the layout you arranged — not worth one icon.
 
-## 命令行
-
-```powershell
-PanelDock.exe                 # 打开管理界面
-PanelDock.exe --open <面板ID>  # 轻量启动：直接打开该面板（桌面快捷方式用的就是这个）
-```
-
-只有 `--open` 一个参数，传的是**面板 ID**。想做「单标签直达」，建一个只含一个标签的面板即可。
-
-## 开发
-
-环境：Go 1.25+（go.mod 要求）、Wails CLI v2、Node.js、WebView2 Runtime。
+## Command line
 
 ```powershell
-wails dev     # 开发模式
-wails build   # 产出 build/bin/PanelDock.exe
+PanelDock.exe                   # open the manager
+PanelDock.exe --open <panelID>  # lightweight launch: open that panel directly (this is what shortcuts use)
 ```
 
-从 Git Bash 启动若找不到 `npm`，改从 `cmd.exe` 运行 `wails build`。回归基线：`go vet ./...` 与 `go test ./...` 必须通过。
+`--open` is the only parameter and it takes a **panel ID**. For "jump straight to one tab", create a panel that contains just that one tab.
 
-给接手代码的人（或 AI）看的文档：
+## Development
 
-- `AGENTS.md` —— 入口：硬边界、心智模型、文件地图、文档索引。
-- `docs/architecture.md` —— 运行机制（进程寿命、关闭路径、单实例、配置与设置、数据位置）。
-- `docs/behavior.md` —— 行为契约速查；`docs/pitfalls.md` —— 踩坑清单（改绘制 / Win32 / COM / WebView2 vtable / 图标编码前先扫）。
-- `docs/doc-policy.md` —— 文档与注释的书写规范（含防膨胀检查）。
+Requirements: Go 1.25+ (per go.mod), Wails CLI v2, Node.js, WebView2 Runtime.
+
+```powershell
+wails dev     # dev mode
+wails build   # produces build/bin/PanelDock.exe
+```
+
+If Wails cannot find `npm` when launched from Git Bash, run `wails build` from `cmd.exe` instead. Regression baseline: `go vet ./...` and `go test ./...` must both pass.
+
+Docs for whoever picks up the code (or an AI):
+
+- `AGENTS.md` — entry point: hard boundaries, mental model, file map, doc index.
+- `docs/architecture.md` — runtime mechanics (process lifetime, close paths, single instance, config and settings, data locations).
+- `docs/behavior.md` — behaviour contract cheat-sheet; `docs/pitfalls.md` — pitfalls (scan it before touching drawing, Win32, COM, WebView2 vtables or icon encoding).
+- `docs/doc-policy.md` — how docs and comments are written (including the anti-bloat checks).

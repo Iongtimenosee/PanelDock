@@ -28,7 +28,7 @@ PanelDock：Windows/Wails 桌面工具，用**隔离的 WebView2 会话**打开�
 | `docs/behavior.md` | 改任何用户可见行为之前（行为契约速查，一条一段结论） |
 | `docs/pitfalls.md` | **改绘制 / Win32 / COM / WebView2 vtable / 图标编码 / E2E 之前必扫** |
 | `docs/doc-policy.md` | 写文档或注释之前（含硬上限与演进规则） |
-| `README.md` / `README.en.md` | 面向最终用户，改动功能时同步 |
+| `README.md` / `README.zh-CN.md` | 面向最终用户，改动功能时同步（英文为默认落地页） |
 
 ## 文件地图
 

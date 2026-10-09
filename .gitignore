@@ -16,3 +16,8 @@ assets-tmp/
 
 # wails build -nsis 会在构建时下载 WebView2 引导程序到这里，属构建产物
 build/windows/installer/tmp/
+
+# Syncthing：两台机器同步本工程目录用的本机配置（.stignore 的排除规则与机器绑定，
+# .stfolder 是同步目录标记）。属本机环境，不随公开仓库分发。
+.stignore
+.stfolder/
