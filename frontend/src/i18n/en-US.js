@@ -9,9 +9,12 @@ export const enUS = {
   'theme.toLight': 'Switch to light',
   'theme.toDark': 'Switch to dark',
 
+  // ─── View tabs (the two manager sections) ───────────────────────────────
+  // sectionLabel is now the tab wording — views do not repeat the same title.
+  'view.tablistLabel': 'Manager sections',
+
   // ─── App settings ───────────────────────────────────────────────────────
   'settings.sectionLabel': 'App settings',
-  'settings.generalTitle': 'General',
 
   'settings.trayLabel': 'Show tray icon',
   'settings.trayHint':
@@ -57,7 +60,6 @@ export const enUS = {
 
   // ─── Panel list ─────────────────────────────────────────────────────────
   'panels.sectionLabel': 'Panels',
-  'panels.sectionTitle': 'Web panels',
   'panels.add': '＋ New panel',
   'empty.hint': 'No panels yet — click "New panel" in the top-right corner to create the first one.',
 

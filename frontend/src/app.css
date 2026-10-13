@@ -96,25 +96,72 @@
 .workspace {
   max-width: 960px;
   margin: 0 auto;
-  padding: 40px 0 24px;
+  padding: 20px 0 24px;
 }
 
-.section-head {
+/* ─── 视图标签（面板列表 / 应用设置）──────────────────────────────────────── */
+/* 分割线画在 tablist 上，选中态的下边框（-1px 压上去）盖掉它，连成一条 accent 底线。 */
+.view-tabs {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
 }
 
-.section-head h2 {
-  margin: 8px 0 0;
+.view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  margin-bottom: -1px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-secondary);
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.view-tab svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.view-tab:hover {
+  color: var(--text);
+  border-bottom-color: var(--border-strong);
+}
+
+.view-tab[aria-selected='true'] {
   color: var(--text-heading);
-  font-size: 24px;
-  line-height: 1.2;
+  border-bottom-color: var(--accent);
 }
 
-.section-head button {
+.view-tab:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.view-panel {
+  padding-top: 22px;
+}
+
+/* 视图内的操作排（如面板列表的「新建面板」）：靠右对齐，不给没必要的主标题留位置。 */
+.view-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.view-actions button {
   min-height: 38px;
   padding: 0 16px;
   border: 1px solid var(--accent);
@@ -125,8 +172,13 @@
   font-weight: 600;
 }
 
-.section-head button:hover {
+.view-actions button:hover {
   background: var(--accent-hover);
+}
+
+.view-actions button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .panel-form {
@@ -216,10 +268,6 @@
 }
 
 /* ─── 应用设置 ─────────────────────────────────────────────────────────────── */
-
-.settings-section {
-  margin-bottom: 34px;
-}
 
 .settings-card {
   padding: 18px;

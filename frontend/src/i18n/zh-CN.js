@@ -10,9 +10,12 @@ export const zhCN = {
   'theme.toLight': '切换到浅色',
   'theme.toDark': '切换到深色',
 
+  // ─── 视图标签（管理窗口的两个分区）───────────────────────────────────────
+  // sectionLabel 现在是标签上的字样 —— 视图内部不再重复放同一句标题。
+  'view.tablistLabel': '管理分区',
+
   // ─── 应用设置 ───────────────────────────────────────────────────────────
   'settings.sectionLabel': '应用设置',
-  'settings.generalTitle': '常规',
 
   'settings.trayLabel': '在系统托盘显示图标',
   'settings.trayHint':
@@ -58,7 +61,6 @@ export const zhCN = {
 
   // ─── 面板列表 ───────────────────────────────────────────────────────────
   'panels.sectionLabel': '面板列表',
-  'panels.sectionTitle': 'Web管理面板',
   'panels.add': '＋ 新建面板',
   'empty.hint': '还没有面板，点击右上角「新建面板」创建第一个。',
 

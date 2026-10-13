@@ -72,89 +72,21 @@ document.querySelector('#app').innerHTML = `
     </header>
 
     <main class="workspace">
-      <section class="settings-section" aria-labelledby="settings-title">
-        <div class="section-head">
-          <div>
-            <p class="section-label">${t('settings.sectionLabel')}</p>
-            <h2 id="settings-title">${t('settings.generalTitle')}</h2>
-          </div>
-        </div>
+      <!-- 两个分区平级切换：标签本身就是分区标题，视图里不再重复同一句标题文字。
+           分工：面板列表是日常操作对象（默认停在这一屏），应用设置是低频的一次性动作。 -->
+      <div class="view-tabs" role="tablist" aria-label="${t('view.tablistLabel')}">
+        <button id="tab-panels" class="view-tab" type="button" role="tab" data-view="panels" aria-selected="true" aria-controls="view-panels" tabindex="0">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          <span>${t('panels.sectionLabel')}</span>
+        </button>
+        <button id="tab-settings" class="view-tab" type="button" role="tab" data-view="settings" aria-selected="false" aria-controls="view-settings" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+          <span>${t('settings.sectionLabel')}</span>
+        </button>
+      </div>
 
-        <div class="settings-card">
-          <label class="check-line">
-            <input id="st-show-tray" type="checkbox" />
-            ${t('settings.trayLabel')}
-          </label>
-          <p class="settings-hint">
-            ${t('settings.trayHint')}
-          </p>
-          <p id="st-tray-forced" class="settings-hint is-warn" hidden>
-            ${t('settings.trayForced')}
-          </p>
-
-          <div class="form-row settings-row">
-            <label for="st-theme">${t('settings.themeLabel')}</label>
-            <select id="st-theme">
-              <option value="auto">${t('settings.themeAuto')}</option>
-              <option value="light">${t('settings.themeLight')}</option>
-              <option value="dark">${t('settings.themeDark')}</option>
-            </select>
-          </div>
-          <p class="settings-hint">
-            ${t('settings.themeHint')}
-          </p>
-
-          <div class="form-row settings-row">
-            <label for="st-language">${t('settings.languageLabel')}</label>
-            <select id="st-language">
-              <option value="auto">${t('settings.languageAuto')}</option>
-              <option value="zh-CN">${t('settings.languageZhCN')}</option>
-              <option value="en-US">${t('settings.languageEnUS')}</option>
-            </select>
-          </div>
-          <p class="settings-hint">
-            ${t('settings.languageHint')}
-          </p>
-
-          <div class="form-row settings-row">
-            <label for="st-panel-close-action">${t('settings.closeActionLabel')}</label>
-            <select id="st-panel-close-action">
-              <option value="ask">${t('settings.closeActionAsk')}</option>
-              <option value="tray">${t('settings.closeActionTray')}</option>
-              <option value="close">${t('settings.closeActionClose')}</option>
-            </select>
-          </div>
-          <p class="settings-hint">
-            ${t('settings.closeActionHint')}
-          </p>
-
-          <label class="check-line" title="${t('settings.lightweightTitle')}">
-            <input id="st-lightweight-quit" type="checkbox" />
-            ${t('settings.lightweightLabel')}
-          </label>
-          <p class="settings-hint">
-            ${t('settings.lightweightHint')}
-          </p>
-
-          <div class="form-row settings-row">
-            <label>${t('settings.configLabel')}</label>
-            <div class="settings-row-actions">
-              <button id="st-export-config" type="button" class="btn-sm">${t('settings.configExport')}</button>
-              <button id="st-import-config" type="button" class="btn-sm">${t('settings.configImport')}</button>
-            </div>
-          </div>
-          <p class="settings-hint">
-            ${t('settings.configHint')}
-          </p>
-        </div>
-      </section>
-
-      <section class="panels-section" aria-labelledby="panels-title">
-        <div class="section-head">
-          <div>
-            <p class="section-label">${t('panels.sectionLabel')}</p>
-            <h2 id="panels-title">${t('panels.sectionTitle')}</h2>
-          </div>
+      <section id="view-panels" class="view-panel" role="tabpanel" aria-labelledby="tab-panels">
+        <div class="view-actions">
           <button id="add-panel-btn" type="button">${t('panels.add')}</button>
         </div>
 
@@ -235,6 +167,76 @@ document.querySelector('#app').innerHTML = `
 
         <div id="panel-list" class="panel-list"></div>
         <p id="empty-hint" class="empty-hint" hidden>${t('empty.hint')}</p>
+      </section>
+
+      <section id="view-settings" class="view-panel" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <div class="settings-card">
+          <label class="check-line">
+            <input id="st-show-tray" type="checkbox" />
+            ${t('settings.trayLabel')}
+          </label>
+          <p class="settings-hint">
+            ${t('settings.trayHint')}
+          </p>
+          <p id="st-tray-forced" class="settings-hint is-warn" hidden>
+            ${t('settings.trayForced')}
+          </p>
+
+          <div class="form-row settings-row">
+            <label for="st-theme">${t('settings.themeLabel')}</label>
+            <select id="st-theme">
+              <option value="auto">${t('settings.themeAuto')}</option>
+              <option value="light">${t('settings.themeLight')}</option>
+              <option value="dark">${t('settings.themeDark')}</option>
+            </select>
+          </div>
+          <p class="settings-hint">
+            ${t('settings.themeHint')}
+          </p>
+
+          <div class="form-row settings-row">
+            <label for="st-language">${t('settings.languageLabel')}</label>
+            <select id="st-language">
+              <option value="auto">${t('settings.languageAuto')}</option>
+              <option value="zh-CN">${t('settings.languageZhCN')}</option>
+              <option value="en-US">${t('settings.languageEnUS')}</option>
+            </select>
+          </div>
+          <p class="settings-hint">
+            ${t('settings.languageHint')}
+          </p>
+
+          <div class="form-row settings-row">
+            <label for="st-panel-close-action">${t('settings.closeActionLabel')}</label>
+            <select id="st-panel-close-action">
+              <option value="ask">${t('settings.closeActionAsk')}</option>
+              <option value="tray">${t('settings.closeActionTray')}</option>
+              <option value="close">${t('settings.closeActionClose')}</option>
+            </select>
+          </div>
+          <p class="settings-hint">
+            ${t('settings.closeActionHint')}
+          </p>
+
+          <label class="check-line" title="${t('settings.lightweightTitle')}">
+            <input id="st-lightweight-quit" type="checkbox" />
+            ${t('settings.lightweightLabel')}
+          </label>
+          <p class="settings-hint">
+            ${t('settings.lightweightHint')}
+          </p>
+
+          <div class="form-row settings-row">
+            <label>${t('settings.configLabel')}</label>
+            <div class="settings-row-actions">
+              <button id="st-export-config" type="button" class="btn-sm">${t('settings.configExport')}</button>
+              <button id="st-import-config" type="button" class="btn-sm">${t('settings.configImport')}</button>
+            </div>
+          </div>
+          <p class="settings-hint">
+            ${t('settings.configHint')}
+          </p>
+        </div>
       </section>
     </main>
 
@@ -435,6 +437,52 @@ const icShortcutHint = document.querySelector('#ic-shortcut-hint');
 const icShortcutList = document.querySelector('#ic-shortcut-list');
 const icFootnote = document.querySelector('#ic-footnote');
 const icApply = document.querySelector('#ic-apply');
+
+// ─── 视图标签（面板列表 / 应用设置）───────────────────────────────────────────
+// 一次只显示一个分区，但**不销毁 DOM**：设置区的事件监听是 innerHTML 渲染后一次性
+// 绑死的，重绑既没必要也容易漏；上面这些元素引用也因此在两个视图间始终有效。
+// 选中态用 aria-selected 驱动（CSS 只认这个属性），不在两边同步第二套 class。
+const viewTabList = document.querySelector('.view-tabs');
+const viewTabs = Array.from(document.querySelectorAll('.view-tab'));
+const viewBodies = Array.from(document.querySelectorAll('.view-panel'));
+
+function showView(name) {
+  for (const tab of viewTabs) {
+    const active = tab.dataset.view === name;
+    tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    // 漫游 tabindex：整个 tablist 在 Tab 序列里只占一个停靠点，内部靠方向键走。
+    tab.tabIndex = active ? 0 : -1;
+  }
+  for (const body of viewBodies) {
+    body.hidden = body.id !== `view-${name}`;
+  }
+}
+
+viewTabs.forEach((tab) => {
+  tab.addEventListener('click', () => showView(tab.dataset.view));
+});
+
+// 方向键是 role="tablist" 对读屏用户的承诺（宣告了就得真能用），Home / End 跳首尾。
+viewTabList.addEventListener('keydown', (event) => {
+  const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+  const current = viewTabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
+  let next = null;
+  if (step) {
+    next = viewTabs[(current + step + viewTabs.length) % viewTabs.length];
+  } else if (event.key === 'Home') {
+    next = viewTabs[0];
+  } else if (event.key === 'End') {
+    next = viewTabs[viewTabs.length - 1];
+  }
+  if (!next) return;
+  event.preventDefault();
+  next.focus();
+  showView(next.dataset.view);
+});
+
+// 默认停在「面板列表」：面板是日常操作对象，应用设置是一次性的低频动作。
+// 不记忆上次停在哪屏 —— 管理窗口每次唤起都回到最常用的那一屏，不做隐藏状态。
+showView('panels');
 
 let panels = [];
 let formTabs = []; // 当前表单中的标签列表
