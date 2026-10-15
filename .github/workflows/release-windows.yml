@@ -148,10 +148,14 @@ jobs:
           $staging = Join-Path $env:RUNNER_TEMP 'PanelDock-pkg'
           New-Item -ItemType Directory -Path $staging -Force | Out-Null
           # 绿色版四件套：exe + 许可证 + 中英文说明（说明里有安装、数据位置与隐私）
+          # README.md 是英文版（GitHub 默认落地页），README.zh-CN.md 是中文版 ——
+          # 2026-10-09 之前中文版叫 README.md、英文版叫 README.en.md，2026-10-13 的
+          # v1.0.2 就栽在这里：Copy-Item 找不到旧名直接让这一步失败，后面三步全被跳过，
+          # Release 没建出来。改动 README 文件名时务必同步本段。
           Copy-Item 'build\bin\PanelDock.exe' -Destination $staging
           Copy-Item 'LICENSE' -Destination $staging
           Copy-Item 'README.md' -Destination $staging
-          Copy-Item 'README.en.md' -Destination $staging
+          Copy-Item 'README.zh-CN.md' -Destination $staging
           Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $out
           Write-Output ("已打包 {0}（{1:N1} MB）" -f $out, ((Get-Item $out).Length / 1MB))
 
